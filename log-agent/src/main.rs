@@ -27,7 +27,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn run_command(project: String, cmd: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     println!("📋 Project: {}", project);
-    println!("🔌 Socket: {}", socket::SOCKET_PATH);
     println!();
 
     // Créer un channel pour les logs

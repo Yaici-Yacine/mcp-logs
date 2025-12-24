@@ -1,6 +1,6 @@
 [package]
 name = "mcp-log-agent"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2024"
 authors = ["yacine yaici <yaiciy01@gmail.com>"]
 description = "Real-time log capture CLI for development projects with MCP integration"
@@ -10,9 +10,29 @@ readme = "README.md"
 keywords = ["logging", "mcp", "development", "real-time", "monitoring"]
 categories = ["command-line-utilities", "development-tools"]
 
+[[bin]]
+name = "mcp-log-agent"
+path = "src/main.rs"
+
 [dependencies]
 tokio = { version = "1.48", features = ["full"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.147"
 chrono = { version = "0.4.42", features = ["serde"] }
 clap = { version = "4.5.53", features = ["derive"] }
+
+[package.metadata.deb]
+maintainer = "Yacine Yaici <yaiciy01@gmail.com>"
+copyright = "2025, Yacine Yaici <yaiciy01@gmail.com>"
+license-file = ["LICENSE", "4"]
+extended-description = """\
+A real-time log capture CLI tool for development projects.
+Integrates with MCP (Model Context Protocol) servers to provide
+real-time log streaming and analysis capabilities."""
+depends = "$auto"
+section = "utility"
+priority = "optional"
+assets = [
+    ["target/release/mcp-log-agent", "usr/bin/", "755"],
+    ["README.md", "usr/share/doc/mcp-log-agent/", "644"],
+]
