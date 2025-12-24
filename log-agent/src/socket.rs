@@ -62,7 +62,10 @@ impl SocketClient {
     }
 
     /// Test la connexion au socket
-    pub async fn test_connection(&self, message: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn test_connection(
+        &self,
+        message: Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         println!("Testing connection to {}...", self.socket_path);
 
         let test_log = LogMessage::new(

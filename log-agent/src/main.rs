@@ -4,8 +4,8 @@ mod socket;
 mod types;
 
 use capture::ProcessCapture;
-use cli::{Cli, Commands};
 use clap::Parser;
+use cli::{Cli, Commands};
 use socket::SocketClient;
 use tokio::sync::mpsc;
 
@@ -25,10 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn run_command(
-    project: String,
-    cmd: Vec<String>,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_command(project: String, cmd: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     println!("📋 Project: {}", project);
     println!("🔌 Socket: {}", socket::SOCKET_PATH);
     println!();

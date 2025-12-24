@@ -1,11 +1,18 @@
 [package]
-name = "log-agent"
-version = "0.1.0"
+name = "mcp-log-agent"
+version = "0.0.1"
 edition = "2024"
+authors = ["yacine yaici <yaiciy01@gmail.com>"]
+description = "Real-time log capture CLI for development projects with MCP integration"
+license = "MIT"
+repository = "https://github.com/Yaici-Yacine/mcp-logs.git"
+readme = "README.md"
+keywords = ["logging", "mcp", "development", "real-time", "monitoring"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
-tokio = { version = "1.35", features = ["full"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-chrono = { version = "0.4", features = ["serde"] }
-clap = { version = "4.4", features = ["derive"] }
+tokio = { version = "1.48", features = ["full"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.147"
+chrono = { version = "0.4.42", features = ["serde"] }
+clap = { version = "4.5.53", features = ["derive"] }

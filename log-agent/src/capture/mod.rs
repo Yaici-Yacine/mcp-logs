@@ -113,8 +113,7 @@ async fn capture_stream<R>(
                     }
 
                     // Crée et envoie le message de log
-                    let log =
-                        LogMessage::new(project.clone(), message, source.clone(), pid);
+                    let log = LogMessage::new(project.clone(), message, source.clone(), pid);
 
                     if let Err(e) = tx.send(log).await {
                         eprintln!("Failed to send log to channel: {}", e);

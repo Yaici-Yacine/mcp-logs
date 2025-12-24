@@ -1,6 +1,6 @@
 {
-  "name": "@yacine/mcp-logs",
-  "version": "1.0.0",
+  "name": "mcp-logs",
+  "version": "0.0.1",
   "description": "Real-time log capture MCP server for development projects",
   "type": "module",
   "bin": {
@@ -17,10 +17,22 @@
     "logs",
     "development",
     "realtime",
-    "monitoring"
+    "monitoring",
+    "model-context-protocol"
   ],
-  "author": "Yacine",
+  "author": {
+    "name": "Yacine Yaici",
+    "email": "yaiciy01@gmail.com"
+  },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Yaici-Yacine/mcp-logs.git"
+  },
+  "homepage": "https://github.com/Yaici-Yacine/mcp-logs#readme",
+  "bugs": {
+    "url": "https://github.com/Yaici-Yacine/mcp-logs/issues"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.1"
   },
@@ -32,6 +44,11 @@
   },
   "files": [
     "index.ts",
-    "src/**/*"
-  ]
+    "src/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
