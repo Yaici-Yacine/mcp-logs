@@ -5,16 +5,19 @@ import { LogStore } from "../store/index.js";
 export const SOCKET_PATH = "/tmp/log-agent.sock";
 
 /**
- * Serveur Unix socket pour recevoir les logs du CLI Rust
+ * Serveur Unix socket pour recevoir les logs de plusieurs CLI Rust
  */
 export class SocketServer {
   private server: ReturnType<typeof Bun.listen> | null = null;
   private store: LogStore;
   private socketPath: string;
+  private verbose: boolean;
+  private connectedProjects: Set<string> = new Set();
 
-  constructor(store: LogStore, socketPath: string = SOCKET_PATH) {
+  constructor(store: LogStore, socketPath: string = SOCKET_PATH, verbose = false) {
     this.store = store;
     this.socketPath = socketPath;
+    this.verbose = verbose;
   }
 
   /**
@@ -35,10 +38,10 @@ export class SocketServer {
           this.handleData(data);
         },
         open: (socket) => {
-          console.log("✓ Client connected");
+          if (this.verbose) console.log("✓ Client connected");
         },
         close: (socket) => {
-          console.log("✓ Client disconnected");
+          if (this.verbose) console.log("✓ Client disconnected");
         },
         error: (socket, error) => {
           console.error("Socket error:", error);
@@ -46,7 +49,7 @@ export class SocketServer {
       },
     });
 
-    console.log(`✓ Socket server listening on ${this.socketPath}`);
+    console.log(`✓ Socket server listening `);
   }
 
   /**
@@ -61,15 +64,30 @@ export class SocketServer {
         const log: LogMessage = JSON.parse(line);
         this.store.add(log);
 
-        // Affiche le log dans la console du serveur
-        const emoji = this.getLevelEmoji(log.data.level);
-        console.log(
-          `${emoji} [${log.data.project}] ${log.data.message.substring(0, 100)}`
-        );
+        // Enregistrer le projet comme connecté
+        if (!this.connectedProjects.has(log.data.project)) {
+          this.connectedProjects.add(log.data.project);
+          console.log(`✓ Agent connected: ${log.data.project}`);
+        }
+
+        // Affiche le log dans la console du serveur seulement en mode verbose
+        if (this.verbose) {
+          const emoji = this.getLevelEmoji(log.data.level);
+          console.log(
+            `${emoji} [${log.data.project}] ${log.data.message.substring(0, 100)}`
+          );
+        }
       } catch (error) {
         console.error("Failed to parse log:", error, "Line:", line);
       }
     }
+  }
+
+  /**
+   * Retourne la liste des projets connectés
+   */
+  getConnectedProjects(): string[] {
+    return Array.from(this.connectedProjects);
   }
 
   /**

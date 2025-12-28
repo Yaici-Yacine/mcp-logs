@@ -16,25 +16,66 @@ Real-time log capture CLI for development projects with MCP (Model Context Proto
 
 ## Installation
 
+### From crates.io (recommended)
+
 ```bash
 cargo install mcp-log-agent
 ```
 
-Or build from source:
+The binary will be installed in `~/.cargo/bin/` (ensure this is in your `$PATH`).
+
+### From Source
 
 ```bash
 git clone https://github.com/Yaici-Yacine/mcp-logs.git
 cd mcp-logs/log-agent
+
+# Install globally
+cargo install --path .
+
+# Or build without installing
 cargo build --release
+# Binary will be in ./target/release/mcp-log-agent
 ```
 
 ## Quick Start
 
-### 1. Start the MCP server
+### 1. Install dependencies
 
-The MCP server must be running to receive logs. See [mcp-logs documentation](https://github.com/Yaici-Yacine/mcp-logs) for setup instructions.
+```bash
+# Install the log agent
+cargo install mcp-log-agent
 
-### 2. Capture logs from your project
+# Install the MCP server
+npm install -g mcp-logs
+# or: bun install -g mcp-logs
+```
+
+### 2. Configure your MCP client
+
+Add to your MCP client configuration (OpenCode, Claude Desktop, Cline, etc.):
+
+```json
+{
+  "mcpServers": {
+    "mcp-logs": {
+      "command": "mcp-logs"
+    }
+  }
+}
+```
+
+**Configuration file locations:**
+- **OpenCode:** `~/.config/opencode/mcp.json`
+- **Claude Desktop (macOS):** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Claude Desktop (Windows):** `%APPDATA%\Claude\claude_desktop_config.json`
+- **Cline (VSCode):** VSCode `settings.json` under `cline.mcpServers`
+
+### 3. Restart your MCP client
+
+Restart your client (OpenCode, Claude Desktop, Cline) to load the MCP server.
+
+### 4. Capture logs from your project
 
 ```bash
 # Capture from any command
@@ -50,11 +91,20 @@ mcp-log-agent run --project backend cargo run
 mcp-log-agent run --project ml-script python train.py
 ```
 
-### 3. Test the connection
+Logs will be displayed in your terminal (colorized) AND captured by the MCP server.
 
-```bash
-mcp-log-agent test --message "Hello from CLI"
+### 5. Query logs via your MCP client
+
+In your MCP client (OpenCode, Claude Desktop, Cline), ask questions like:
+
 ```
+Show me the recent logs
+What errors occurred in my-app?
+Search for "database" in the logs
+List all connected projects
+```
+
+The client will automatically call the appropriate MCP tools (`get_recent_logs`, `get_errors`, `search_logs`, `list_projects`, etc.).
 
 ## Usage
 
@@ -96,6 +146,13 @@ mcp-log-agent test [--message <TEXT>]
 
 **Options:**
 - `--message, -m`: Custom test message (optional)
+
+**Example:**
+```bash
+mcp-log-agent test --message "Hello from CLI"
+```
+
+> **Note:** The MCP server must be running (via your MCP client) for the test to succeed.
 
 ## Log Format
 
@@ -140,11 +197,25 @@ To change the socket path, modify `SOCKET_PATH` in `src/socket.rs` and recompile
 
 This CLI works in tandem with the MCP server to provide real-time log analysis capabilities:
 
-1. **Start the MCP server** - Handles incoming logs and provides query tools
-2. **Run mcp-log-agent** - Captures and streams logs from your projects
-3. **Query via MCP tools** - Search, filter, and analyze logs in real-time
+1. **Configure MCP server in your client** - The server is automatically started by your MCP client (OpenCode, Claude Desktop, Cline)
+2. **Run mcp-log-agent** - Captures and streams logs from your projects to the MCP server
+3. **Query via natural language** - Ask questions in your MCP client to search, filter, and analyze logs
 
-See the [complete documentation](https://github.com/Yaici-Yacine/mcp-logs) for MCP server setup and usage.
+### Available MCP Tools
+
+Once configured, your MCP client will have access to 7 tools:
+
+| Tool | Description |
+|------|-------------|
+| `get_recent_logs` | Get the most recent logs |
+| `get_logs` | Advanced filtering (project, level, source, text search) |
+| `search_logs` | Text search across all logs |
+| `get_errors` | Get only error-level logs |
+| `get_stats` | Statistics about captured logs |
+| `list_projects` | List all connected log agents |
+| `clear_logs` | Clear all logs from memory |
+
+See the [mcp-logs documentation](https://github.com/Yaici-Yacine/mcp-logs) for detailed MCP server setup and configuration.
 
 
 ## Use Cases

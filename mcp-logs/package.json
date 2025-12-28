@@ -1,16 +1,18 @@
 {
   "name": "mcp-logs",
-  "version": "0.0.1",
+  "version": "0.0.4",
   "description": "Real-time log capture MCP server for development projects",
   "type": "module",
   "bin": {
-    "mcp-logs": "./index.ts"
+    "mcp-logs": "./dist/index.js"
   },
-  "main": "./index.ts",
-  "module": "./index.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
   "scripts": {
     "dev": "bun run index.ts",
-    "start": "bun run index.ts"
+    "start": "bun run index.ts",
+    "build": "bun build index.ts --target=node --outdir=dist --minify --sourcemap",
+    "prepublishOnly": "bun run build"
   },
   "keywords": [
     "mcp",
@@ -43,8 +45,7 @@
     "typescript": "^5"
   },
   "files": [
-    "index.ts",
-    "src/**/*",
+    "dist/**/*",
     "README.md",
     "LICENSE"
   ],

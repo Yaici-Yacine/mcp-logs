@@ -110,4 +110,13 @@ export const TOOLS: Tool[] = [
       properties: {},
     },
   },
+  {
+    name: "list_projects",
+    description:
+      "List all projects that have sent logs. Shows which log agents are connected.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
 ];

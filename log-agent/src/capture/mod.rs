@@ -1,4 +1,5 @@
-use crate::types::{LogMessage, LogSource};
+use crate::types::{LogLevel, LogMessage, LogSource};
+use owo_colors::OwoColorize;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
@@ -14,9 +15,19 @@ impl ProcessCapture {
         Self { project, command }
     }
 
+    /// Lance le processus et retourne un handle
+    pub fn spawn_with_tx(
+        self,
+        tx: mpsc::Sender<LogMessage>,
+    ) -> tokio::task::JoinHandle<Result<(), String>> {
+        tokio::spawn(async move {
+            self.run(tx).await.map_err(|e| e.to_string())
+        })
+    }
+
     /// Lance le processus et capture les logs stdout/stderr
-    pub async fn run(
-        &self,
+    async fn run(
+        self,
         tx: mpsc::Sender<LogMessage>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if self.command.is_empty() {
@@ -26,11 +37,15 @@ impl ProcessCapture {
         let program = &self.command[0];
         let args = &self.command[1..];
 
-        println!(
-            "🚀 Starting project '{}' with command: {} {}",
-            self.project,
-            program,
-            args.join(" ")
+        eprintln!(
+            "{}",
+            format!(
+                "🚀 Starting '{}': {} {}",
+                self.project,
+                program,
+                args.join(" ")
+            )
+            .bright_green()
         );
 
         // Spawn le processus enfant
@@ -41,7 +56,7 @@ impl ProcessCapture {
             .spawn()?;
 
         let pid = child.id().ok_or("Failed to get PID")?;
-        println!("✓ Process started with PID: {}", pid);
+        eprintln!("{}", format!("✓ Process started (PID: {})", pid).bright_black());
 
         let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
         let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
@@ -81,7 +96,14 @@ impl ProcessCapture {
         let _ = stdout_task.await;
         let _ = stderr_task.await;
 
-        println!("✓ Process exited with status: {}", status);
+        if status.success() {
+            eprintln!("{}", format!("✓ Process exited successfully").green());
+        } else {
+            eprintln!(
+                "{}",
+                format!("✗ Process exited with status: {}", status).red()
+            );
+        }
 
         Ok(())
     }
@@ -106,17 +128,15 @@ async fn capture_stream<R>(
             Ok(_) => {
                 let message = line.trim_end().to_string();
                 if !message.is_empty() {
-                    // Affiche dans le terminal
-                    match source {
-                        LogSource::Stdout => println!("[stdout] {}", message),
-                        LogSource::Stderr => eprintln!("[stderr] {}", message),
-                    }
+                    // Crée le message de log
+                    let log = LogMessage::new(project.clone(), message.clone(), source.clone(), pid);
+                    
+                    // Affiche dans le terminal avec coloration
+                    print_colored_log(&log);
 
-                    // Crée et envoie le message de log
-                    let log = LogMessage::new(project.clone(), message, source.clone(), pid);
-
+                    // Envoie le log au channel
                     if let Err(e) = tx.send(log).await {
-                        eprintln!("Failed to send log to channel: {}", e);
+                        eprintln!("{}", format!("Failed to send log to channel: {}", e).red());
                         break;
                     }
                 }
@@ -125,6 +145,29 @@ async fn capture_stream<R>(
                 eprintln!("Error reading stream: {}", e);
                 break;
             }
+        }
+    }
+}
+
+/// Affiche un log avec coloration selon le niveau
+fn print_colored_log(log: &LogMessage) {
+    use owo_colors::OwoColorize;
+    
+    // Pas de préfixe, juste le message colorisé selon le niveau
+    let message_str = &log.data.message;
+    
+    match log.data.level {
+        LogLevel::Error => {
+            eprintln!("{}", message_str.red().bold());
+        }
+        LogLevel::Warn => {
+            eprintln!("{}", message_str.yellow());
+        }
+        LogLevel::Debug => {
+            eprintln!("{}", message_str.blue());
+        }
+        LogLevel::Info => {
+            eprintln!("{}", message_str);
         }
     }
 }

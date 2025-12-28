@@ -1,13 +1,17 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { LogStore } from "../store/index.js";
 import type { LogFilter, LogLevel, LogSource } from "../types/index.js";
+import type { SocketServer } from "../server/index.js";
 
 interface ToolArguments {
   [key: string]: unknown;
 }
 
 export class ToolHandlers {
-  constructor(private store: LogStore) {}
+  constructor(
+    private store: LogStore,
+    private socketServer?: SocketServer
+  ) {}
 
   async handleTool(name: string, args?: ToolArguments): Promise<CallToolResult> {
     try {
@@ -18,6 +22,7 @@ export class ToolHandlers {
         search_logs: () => this.searchLogs(args),
         get_errors: () => this.getErrors(args),
         clear_logs: () => this.clearLogs(),
+        list_projects: () => this.listProjects(),
       };
 
       const handler = matchName[name];
@@ -198,6 +203,28 @@ export class ToolHandlers {
             message: "Logs cleared",
             clearedCount: beforeCount,
           }),
+        },
+      ],
+    };
+  }
+
+  private listProjects(): CallToolResult {
+    const stats = this.store.getStats();
+    const connectedProjects = this.socketServer?.getConnectedProjects() || [];
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              connectedAgents: connectedProjects,
+              projectsWithLogs: stats.projects,
+              totalLogs: stats.total,
+            },
+            null,
+            2
+          ),
         },
       ],
     };

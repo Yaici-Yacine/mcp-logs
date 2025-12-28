@@ -29,7 +29,7 @@ impl SocketClient {
             match self.send_log(&log).await {
                 Ok(_) => {
                     if !connection_logged {
-                        println!("✓ Connected to MCP server at {}", self.socket_path);
+                        eprintln!("✓ Connected to MCP server");
                         connection_logged = true;
                     }
                 }

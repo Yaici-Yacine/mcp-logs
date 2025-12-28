@@ -26,28 +26,137 @@ curl -fsSL https://bun.sh/install | bash
 
 ## Installation
 
-### Global installation (recommended)
+### From NPM Registry (recommended)
 
 ```bash
-# Using bun
-bun install -g mcp-logs
-
 # Using npm
 npm install -g mcp-logs
+
+# Using bun
+bun install -g mcp-logs
 
 # Using pnpm
 pnpm install -g mcp-logs
 ```
 
-### As a dependency
+> **Important:** This package requires [Bun](https://bun.sh) runtime. Install it first:
+> ```bash
+> curl -fsSL https://bun.sh/install | bash
+> ```
+
+### From Source
 
 ```bash
-bun install mcp-logs
+# Clone repository
+git clone https://github.com/Yaici-Yacine/mcp-logs.git
+cd mcp-logs/mcp-logs
+
+# Install dependencies
+bun install
+
+# Install globally
+bun install -g .
 ```
 
 ## Usage
 
-### Standalone Server
+### Configuring MCP Clients
+
+The MCP server must be configured in your MCP client before use. Below are configurations for popular clients:
+
+#### OpenCode
+
+Edit `~/.config/opencode/mcp.json`:
+
+**If installed globally (recommended):**
+```json
+{
+  "mcpServers": {
+    "mcp-logs": {
+      "command": "mcp-logs"
+    }
+  }
+}
+```
+
+**If using from source:**
+```json
+{
+  "mcpServers": {
+    "mcp-logs": {
+      "command": "bun",
+      "args": ["run", "/absolute/path/to/mcp-log/mcp-logs/index.ts"],
+      "env": {
+        "VERBOSE": "false"
+      }
+    }
+  }
+}
+```
+
+#### Claude Desktop
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+
+**If installed globally (recommended):**
+```json
+{
+  "mcpServers": {
+    "mcp-logs": {
+      "command": "mcp-logs"
+    }
+  }
+}
+```
+
+**If using from source:**
+```json
+{
+  "mcpServers": {
+    "mcp-logs": {
+      "command": "bun",
+      "args": ["run", "/absolute/path/to/mcp-log/mcp-logs/index.ts"],
+      "env": {
+        "VERBOSE": "false"
+      }
+    }
+  }
+}
+```
+
+#### Cline (VSCode Extension)
+
+Edit VSCode settings (`settings.json`):
+
+**If installed globally (recommended):**
+```json
+{
+  "cline.mcpServers": {
+    "mcp-logs": {
+      "command": "mcp-logs"
+    }
+  }
+}
+```
+
+**If using from source:**
+```json
+{
+  "cline.mcpServers": {
+    "mcp-logs": {
+      "command": "bun",
+      "args": ["run", "/absolute/path/to/mcp-log/mcp-logs/index.ts"],
+      "env": {
+        "VERBOSE": "false"
+      }
+    }
+  }
+}
+```
+
+> **Note:** Ensure `bun` is installed and in your PATH. Install Bun: https://bun.sh
+
+### Standalone Server (for testing)
 
 ```bash
 mcp-logs

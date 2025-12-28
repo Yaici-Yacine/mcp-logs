@@ -1,147 +1,420 @@
 # MCP Logs - Système de capture de logs en temps réel
 
 Système complet de capture et analyse de logs en temps réel pour projets de développement, avec communication via Unix socket entre un CLI Rust et un serveur MCP Bun.
-`
 
-## Installation
+## ✨ Fonctionnalités
 
-### 1. Compiler le CLI Rust
+- 🎨 **Logs colorisés** : Erreurs en rouge, warnings en jaune, debug en bleu
+- 🔕 **Mode silencieux** : Logs verbeux désactivés par défaut
+- 🚀 **Multi-agents** : Lancez plusieurs agents simultanément pour monitorer plusieurs projets
+- 📊 **Outils MCP** : 7 outils pour interroger et analyser vos logs
+- 🔌 **Unix Socket** : Communication rapide et locale
 
+---
+
+## 📦 Installation
+
+### Méthode 1 : Installation depuis les registres officiels (recommandé)
+
+#### 1. Installer le CLI Rust
+
+```bash
+# Via Cargo (crates.io)
+cargo install mcp-log-agent
+```
+
+Le binaire `mcp-log-agent` sera installé dans `~/.cargo/bin/` (assurez-vous que ce chemin est dans votre `$PATH`).
+
+#### 2. Installer le serveur MCP
+
+```bash
+# Via NPM (npm registry)
+npm install -g mcp-logs
+
+# Ou avec Bun
+bun install -g mcp-logs
+
+# Ou avec pnpm
+pnpm install -g mcp-logs
+```
+
+Le serveur sera installé globalement et accessible via la commande `mcp-logs`.
+
+---
+
+### Méthode 2 : Installation depuis les sources
+
+#### 1. Installer le CLI Rust
+
+```bash
+# Depuis le dossier du projet
+cd log-agent
+cargo install --path .
+```
+
+**Alternative : Build sans installation**
 ```bash
 cd log-agent
 cargo build --release
+# Le binaire sera dans ./target/release/mcp-log-agent
 ```
 
-Le binaire sera dans `target/release/log-agent`
+#### 2. Installer le serveur MCP
 
-### 2. Installer les dépendances MCP
+```bash
+cd mcp-logs
+npm install -g .
+# ou avec bun
+bun install -g .
+```
 
+**Alternative : Utilisation sans installation**
 ```bash
 cd mcp-logs
 bun install
+# Puis lancer avec: bun run index.ts
 ```
 
-## Utilisation
+---
 
-### Étape 1 : Démarrer le serveur MCP
+## 🚀 Utilisation
 
-Dans un terminal, lancez le serveur MCP :
+### Démarrage rapide
 
-```bash
-cd mcp-logs
-bun run index.ts
-```
+#### 1. Configurer le serveur MCP dans votre client
 
-Vous devriez voir :
-```
-🚀 MCP Logs Server starting...
-✓ Socket server listening on /tmp/log-agent.sock
-✓ MCP server ready
-ℹ Waiting for logs from log-agent CLI...
-```
+Le serveur MCP doit être configuré dans votre client MCP (OpenCode, Claude Desktop, Cline, etc.). Choisissez votre client ci-dessous :
 
-### Étape 2 : Lancer votre projet avec log-agent
+##### Pour OpenCode
 
-Dans un autre terminal, utilisez le CLI pour capturer les logs :
+Éditez `~/.config/opencode/mcp.json` :
 
-```bash
-# Exemple avec Bun
-./log-agent/target/release/log-agent run --project my-app bun dev
-
-# Exemple avec Node
-./log-agent/target/release/log-agent run --project api-server npm start
-
-# Exemple avec Rust
-./log-agent/target/release/log-agent run --project rust-app cargo run
-
-# Exemple avec Python
-./log-agent/target/release/log-agent run --project python-app python main.py
-```
-
-### Étape 3 : Analyser les logs via OpenCode
-
-Dans OpenCode/Claude, utilisez les outils MCP pour analyser les logs :
-
-```
-Montre-moi les 50 derniers logs
-Recherche "error" dans les logs
-Quels sont les logs du projet "my-app" ?
-Montre-moi les statistiques des logs
-```
-
-## Outils MCP disponibles
-
-### 1. `get_recent_logs`
-Récupère les derniers logs (par défaut 50, max 500).
-
-**Paramètres :**
-- `count` (optionnel) : nombre de logs à récupérer
-
-**Exemple :**
+**Si installé globalement (recommandé) :**
 ```json
+{
+  "mcpServers": {
+    "mcp-logs": {
+      "command": "mcp-logs"
+    }
+  }
+}
+```
+
+**Si utilisé depuis les sources :**
+```json
+{
+  "mcpServers": {
+    "mcp-logs": {
+      "command": "bun",
+      "args": ["run", "/chemin/absolu/vers/mcp-log/mcp-logs/index.ts"],
+      "env": {
+        "VERBOSE": "false"
+      }
+    }
+  }
+}
+```
+
+##### Pour Claude Desktop
+
+Éditez `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) ou `%APPDATA%\Claude\claude_desktop_config.json` (Windows) :
+
+**Si installé globalement (recommandé) :**
+```json
+{
+  "mcpServers": {
+    "mcp-logs": {
+      "command": "mcp-logs"
+    }
+  }
+}
+```
+
+**Si utilisé depuis les sources :**
+```json
+{
+  "mcpServers": {
+    "mcp-logs": {
+      "command": "bun",
+      "args": ["run", "/chemin/absolu/vers/mcp-log/mcp-logs/index.ts"],
+      "env": {
+        "VERBOSE": "false"
+      }
+    }
+  }
+}
+```
+
+##### Pour Cline (VSCode)
+
+Éditez les paramètres Cline dans VSCode (`settings.json`) :
+
+**Si installé globalement (recommandé) :**
+```json
+{
+  "cline.mcpServers": {
+    "mcp-logs": {
+      "command": "mcp-logs"
+    }
+  }
+}
+```
+
+**Si utilisé depuis les sources :**
+```json
+{
+  "cline.mcpServers": {
+    "mcp-logs": {
+      "command": "bun",
+      "args": ["run", "/chemin/absolu/vers/mcp-log/mcp-logs/index.ts"],
+      "env": {
+        "VERBOSE": "false"
+      }
+    }
+  }
+}
+```
+
+> **Note :** Assurez-vous que `bun` est installé et accessible dans votre PATH, car le package `mcp-logs` nécessite Bun pour fonctionner.
+
+#### 2. Redémarrer votre client MCP
+
+Après avoir modifié la configuration, redémarrez votre client (OpenCode, Claude Desktop, Cline, etc.) pour que le serveur MCP soit chargé.
+
+#### 3. Vérifier que le serveur MCP est connecté
+
+Dans votre client MCP, vous devriez maintenant voir les outils suivants disponibles :
+- `get_recent_logs`
+- `get_logs`
+- `search_logs`
+- `get_errors`
+- `get_stats`
+- `list_projects`
+- `clear_logs`
+
+#### 4. Lancer votre application avec l'agent
+
+Dans un terminal séparé, lancez votre application avec l'agent :
+
+**Si installé globalement :**
+```bash
+mcp-log-agent run --project my-app npm run dev
+```
+
+**Depuis les sources :**
+```bash
+./log-agent/target/release/mcp-log-agent run --project my-app npm run dev
+```
+
+Vos logs s'affichent maintenant dans le terminal ET sont capturés par le serveur MCP.
+
+#### 5. Analyser les logs via MCP
+
+Dans votre client MCP (OpenCode, Claude, Cline), utilisez les outils disponibles :
+
+**Exemples de requêtes :**
+```
+Montre-moi les projets connectés
+Montre les 100 derniers logs
+Recherche "error" dans les logs du projet "my-app"
+Quelles sont les dernières erreurs ?
+```
+
+Le client MCP appellera automatiquement les outils appropriés (`list_projects`, `get_recent_logs`, `search_logs`, `get_errors`, etc.).
+
+---
+
+## 📖 Exemples d'utilisation
+
+### Surveiller une application Next.js
+
+```bash
+mcp-log-agent run --project nextjs-app npm run dev
+```
+
+### Capturer les logs de plusieurs projets
+
+**Terminal 1 - Frontend :**
+```bash
+mcp-log-agent run --project frontend npm run dev
+```
+
+**Terminal 2 - Backend :**
+```bash
+mcp-log-agent run --project backend cargo run
+```
+
+**Terminal 3 - API :**
+```bash
+mcp-log-agent run --project api python main.py
+```
+
+Les logs de tous les projets seront capturés simultanément et différenciables par leur nom.
+
+### Analyser les logs via MCP
+
+Dans votre client MCP, vous pouvez poser des questions en langage naturel :
+
+```bash
+# Exemples de requêtes en langage naturel
+"Montre-moi les derniers logs"
+"Quelles sont les erreurs dans le projet frontend ?"
+"Recherche 'database' dans tous les logs"
+"Affiche les statistiques des logs"
+"Liste tous les projets connectés"
+```
+
+Ou utiliser directement les outils MCP avec leurs paramètres :
+
+```bash
+list_projects                              # Voir tous les agents connectés
+get_recent_logs { "count": 50 }           # Derniers 50 logs
+get_logs { "project": "frontend" }        # Logs du frontend uniquement
+get_errors { "project": "backend" }       # Erreurs du backend
+search_logs { "query": "database" }       # Rechercher "database"
+get_stats                                  # Statistiques globales
+```
+
+---
+
+## 🛠️ Outils MCP disponibles
+
+| Outil | Description | Paramètres |
+|-------|-------------|------------|
+| `get_recent_logs` | Récupère les derniers logs | `count` (optionnel, max 500) |
+| `get_logs` | Filtrage avancé des logs | `project`, `level`, `source`, `search`, `limit` |
+| `search_logs` | Recherche textuelle | `query` (requis), `project`, `limit` |
+| `get_errors` | Logs de niveau erreur uniquement | `project`, `limit` |
+| `get_stats` | Statistiques globales | - |
+| `list_projects` | Liste des agents connectés | - |
+| `clear_logs` | Vide la mémoire | - |
+
+### Exemples de requêtes
+
+```json
+// Récupérer les 100 derniers logs
 {
   "count": 100
 }
-```
 
-### 2. `get_logs`
-Récupère les logs avec filtrage avancé.
-
-**Paramètres :**
-- `project` (optionnel) : nom du projet
-- `level` (optionnel) : `info`, `warn`, `error`, `debug`
-- `source` (optionnel) : `stdout`, `stderr`
-- `search` (optionnel) : recherche textuelle
-- `limit` (optionnel) : nombre max de résultats (défaut 100)
-
-**Exemple :**
-```json
+// Filtrer par projet et niveau
 {
-  "project": "my-app",
+  "project": "frontend",
   "level": "error",
   "limit": 50
 }
-```
 
-### 3. `search_logs`
-Recherche dans les logs par contenu textuel.
-
-**Paramètres :**
-- `query` (requis) : texte à rechercher
-- `project` (optionnel) : filtrer par projet
-- `limit` (optionnel) : nombre max de résultats (défaut 50)
-
-**Exemple :**
-```json
+// Rechercher dans tous les projets
 {
-  "query": "database connection",
+  "query": "connection timeout",
   "limit": 20
 }
 ```
 
-### 4. `get_errors`
-Récupère uniquement les logs de niveau erreur.
+---
 
-**Paramètres :**
-- `project` (optionnel) : filtrer par projet
-- `limit` (optionnel) : nombre max d'erreurs (défaut 50)
+## 🎨 Colorisation des logs
 
-### 5. `get_stats`
-Statistiques globales : nombre total de logs, projets actifs, distribution par niveau.
+Les logs sont automatiquement colorisés dans le terminal selon leur niveau :
 
-### 6. `clear_logs`
-Vide tous les logs en mémoire.
+- 🔴 **Error** : Rouge gras
+- 🟡 **Warning** : Jaune
+- 🔵 **Debug** : Bleu
+- ⚪ **Info** : Blanc (normal)
 
-## Protocole JSON
+Le niveau est inféré automatiquement depuis le contenu du message (détection de mots-clés comme "error", "warning", "debug").
 
-Format des messages échangés via le socket :
+---
+
+## ⚙️ Configuration
+
+### Mode verbose
+
+Par défaut, le serveur MCP est en mode silencieux. Pour activer les logs détaillés :
+
+```bash
+VERBOSE=true mcp-logs-server
+# ou
+VERBOSE=true bun run index.ts
+```
+
+### Changer le chemin du socket
+
+**CLI Rust** (`log-agent/src/socket.rs`) :
+```rust
+pub const SOCKET_PATH: &str = "/tmp/log-agent.sock";
+```
+
+**Serveur MCP** (`mcp-logs/src/server/index.ts`) :
+```typescript
+export const SOCKET_PATH = "/tmp/log-agent.sock";
+```
+
+### Limite de logs en mémoire
+
+Dans `mcp-logs/index.ts` :
+```typescript
+const logStore = new LogStore(10000); // 10000 logs max (FIFO)
+```
+
+---
+
+## 🧪 Test de connexion
+
+Vérifiez que tout fonctionne :
+
+```bash
+mcp-log-agent test --message "Hello from CLI"
+```
+
+Sortie attendue :
+```
+✓ Successfully sent test message to MCP server
+```
+
+---
+
+## 🐛 Dépannage
+
+### Le socket n'existe pas
+
+**Cause** : Le serveur MCP n'est pas démarré.
+
+**Solution** :
+```bash
+mcp-logs-server
+# ou
+cd mcp-logs && bun run index.ts
+```
+
+### Permission denied sur le socket
+
+**Cause** : Problème de permissions utilisateur.
+
+**Solution** : Vérifiez que le CLI et le serveur tournent sous le même utilisateur.
+
+### Logs perdus
+
+**Cause** : Le serveur MCP n'est pas accessible.
+
+**Solution** : Les logs s'affichent quand même dans le terminal du CLI, mais ne sont pas stockés. Démarrez le serveur MCP pour les capturer.
+
+### Trop de logs en mémoire
+
+**Solution** : Utilisez `clear_logs` ou ajustez la limite dans `LogStore`.
+
+---
+
+## 📊 Format des messages
+
+Les logs sont échangés via Unix socket au format JSON :
 
 ```json
 {
   "version": "1.0",
   "type": "log_entry",
   "data": {
-    "timestamp": "2025-12-23T10:30:45.123Z",
+    "timestamp": "2025-12-28T14:30:45.123Z",
     "level": "info",
     "source": "stdout",
     "project": "my-app",
@@ -151,118 +424,28 @@ Format des messages échangés via le socket :
 }
 ```
 
-**Niveaux de log :**
-- `info` : logs informatifs
-- `warn` : avertissements
-- `error` : erreurs
-- `debug` : logs de debug
+**Niveaux** : `info`, `warn`, `error`, `debug`  
+**Sources** : `stdout`, `stderr`
 
-**Sources :**
-- `stdout` : sortie standard
-- `stderr` : sortie d'erreur
+---
 
-## Configuration
-
-### Changer le chemin du socket
-
-**Dans le CLI Rust** (`log-agent/src/socket.rs`) :
-```rust
-pub const SOCKET_PATH: &str = "/tmp/log-agent.sock";
-```
-
-**Dans le serveur MCP** (`mcp-logs/src/server/index.ts`) :
-```typescript
-export const SOCKET_PATH = "/tmp/log-agent.sock";
-```
-
-### Ajuster la limite de logs en mémoire
-
-Dans `mcp-logs/index.ts` :
-```typescript
-const logStore = new LogStore(10000); // 10000 logs max
-```
-
-## Tester la connexion
-
-Testez que le socket fonctionne :
-
-```bash
-./log-agent/target/release/log-agent test --message "Hello from CLI"
-```
-
-## Exemples pratiques
-
-### Surveiller une application Next.js
-
-```bash
-log-agent run --project nextjs-app bun dev
-```
-
-### Capturer les tests
-
-```bash
-log-agent run --project tests npm test
-```
-
-### Plusieurs projets en parallèle
-
-Terminal 1 :
-```bash
-log-agent run --project frontend bun dev
-```
-
-Terminal 2 :
-```bash
-log-agent run --project backend cargo run
-```
-
-Les logs des deux projets seront visibles dans le serveur MCP et différenciables par leur nom.
-
-## Dépannage
-
-### Le socket n'existe pas
-
-Vérifiez que le serveur MCP est démarré en premier :
-```bash
-cd mcp-logs && bun run index.ts
-```
-
-### Permission denied sur le socket
-
-Le socket est créé avec les permissions de l'utilisateur. Assurez-vous que les deux processus tournent sous le même utilisateur.
-
-### Logs perdus
-
-Le CLI continue de fonctionner même si le serveur MCP n'est pas disponible. Les logs sont affichés dans le terminal mais ne sont pas stockés. Démarrez le serveur MCP pour les capturer.
-
-### Trop de logs en mémoire
-
-Ajustez la limite dans `LogStore` ou utilisez `clear_logs` régulièrement.
-
-## Limites actuelles
-
-- Stockage en mémoire uniquement (les logs sont perdus au redémarrage du serveur MCP)
-- Maximum 10000 logs en mémoire par défaut (FIFO : les plus anciens sont supprimés)
-- Communication locale uniquement (Unix socket)
-- Un seul serveur MCP à la fois sur un socket donné
-
-## Structure du projet
+## 🏗️ Structure du projet
 
 ```
 mcp-log/
 ├── log-agent/              # CLI Rust
 │   ├── src/
-│   │   ├── cli/           # Arguments CLI
-│   │   ├── capture/       # Capture stdout/stderr
+│   │   ├── cli/           # Arguments CLI (clap)
+│   │   ├── capture/       # Capture stdout/stderr (tokio)
 │   │   ├── types/         # Types de données
 │   │   ├── socket.rs      # Client Unix socket
 │   │   └── main.rs        # Point d'entrée
 │   └── Cargo.toml
 │
-└── mcp-logs/              # Serveur MCP Bun
+└── mcp-logs/              # Serveur MCP (Bun/TypeScript)
     ├── src/
     │   ├── mcp/
-    │   │   ├── handlers.ts  # Handlers des outils
+    │   │   ├── handlers.ts  # Handlers des outils MCP
     │   │   └── tools.ts     # Définitions des outils
     │   ├── server/
     │   │   └── index.ts     # Serveur Unix socket
@@ -274,11 +457,29 @@ mcp-log/
     └── package.json
 ```
 
-## Contribuer
+---
 
-Ce projet est un POC. Améliorations possibles :
-- Persistence sur disque (base de données)
-- Support de multiples sockets
-- Filtrage en temps réel
-- Interface web
-- Métriques et alertes
+## 🚧 Limites actuelles
+
+- ⚠️ Stockage en mémoire uniquement (logs perdus au redémarrage)
+- ⚠️ Maximum 10000 logs en mémoire (FIFO)
+- ⚠️ Communication locale uniquement (Unix socket)
+- ⚠️ Linux/macOS uniquement (pas de support Windows)
+
+---
+
+## 🤝 Contribuer
+
+Améliorations possibles :
+- [ ] Persistence sur disque (SQLite, PostgreSQL)
+- [ ] Support Windows (Named Pipes)
+- [ ] Interface web de visualisation
+- [ ] Métriques et alertes
+- [ ] Filtrage en temps réel côté serveur
+- [ ] Export des logs (JSON, CSV)
+
+---
+
+## 📄 Licence
+
+MIT © 2025 Yacine Yaici

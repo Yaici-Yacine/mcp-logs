@@ -13,17 +13,19 @@ import { ToolHandlers } from "./src/mcp/handlers.js";
 import { TOOLS } from "./src/mcp/tools.js";
 
 async function main() {
-  console.log("🚀 MCP Logs Server starting...");
+  const verbose = process.env.VERBOSE === "true";
+  
+  if (verbose) console.log("🚀 MCP Logs Server starting...");
 
   // Store global pour les logs
   const logStore = new LogStore(10000);
 
   // Serveur Unix socket
-  const socketServer = new SocketServer(logStore);
+  const socketServer = new SocketServer(logStore, undefined, verbose);
   await socketServer.start();
 
   // Handlers pour les outils MCP
-  const toolHandlers = new ToolHandlers(logStore);
+  const toolHandlers = new ToolHandlers(logStore, socketServer);
 
   // Serveur MCP
   const mcpServer = new Server(
@@ -53,9 +55,11 @@ async function main() {
   const transport = new StdioServerTransport();
   await mcpServer.connect(transport);
 
-  console.log("✓ MCP server ready");
-  console.log("ℹ Waiting for logs from log-agent CLI...");
-  console.log();
+  if (verbose) {
+    console.log("✓ MCP server ready");
+    console.log("ℹ Waiting for logs from log-agent CLI...");
+    console.log();
+  }
 
   // Gestion de l'arrêt propre
   const shutdown = async () => {

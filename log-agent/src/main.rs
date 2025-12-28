@@ -6,6 +6,7 @@ mod types;
 use capture::ProcessCapture;
 use clap::Parser;
 use cli::{Cli, Commands};
+use owo_colors::OwoColorize;
 use socket::SocketClient;
 use tokio::sync::mpsc;
 
@@ -26,8 +27,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn run_command(project: String, cmd: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
-    println!("📋 Project: {}", project);
-    println!();
+    eprintln!("{}", format!("📋 Project: {}", project).bright_cyan());
+    eprintln!();
 
     // Créer un channel pour les logs
     let (tx, rx) = mpsc::channel(1000);
@@ -36,7 +37,7 @@ async fn run_command(project: String, cmd: Vec<String>) -> Result<(), Box<dyn st
     let socket_client = SocketClient::new(None);
     let socket_task = tokio::spawn(async move {
         if let Err(e) = socket_client.start_worker(rx).await {
-            eprintln!("Socket worker error: {}", e);
+            eprintln!("{}", format!("Socket worker error: {}", e).red());
         }
     });
 
@@ -44,12 +45,23 @@ async fn run_command(project: String, cmd: Vec<String>) -> Result<(), Box<dyn st
     let capture = ProcessCapture::new(project, cmd);
 
     // Lancer la capture (bloquant jusqu'à ce que le processus se termine)
-    let result = capture.run(tx).await;
+    let capture_handle = capture.spawn_with_tx(tx);
+
+    // Attendre la fin du processus
+    match capture_handle.await {
+        Ok(Ok(_)) => {},
+        Ok(Err(e)) => {
+            eprintln!("{}", format!("\nProcess error: {}", e).red());
+        }
+        Err(e) => {
+            eprintln!("{}", format!("\nTask error: {}", e).red());
+        }
+    }
 
     // Attendre que le worker socket se termine
     let _ = socket_task.await;
 
-    result
+    Ok(())
 }
 
 async fn test_connection(message: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
