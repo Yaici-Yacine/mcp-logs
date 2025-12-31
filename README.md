@@ -99,6 +99,18 @@ Le serveur MCP doit être configuré dans votre client MCP (OpenCode, Claude Des
   }
 }
 ```
+ou
+```json
+{
+  "mcpServers": {
+    "mcp-logs": {
+      "type": "local",
+      "enabled": true,
+      "command": ["bun","x","mcp-logs@latest"]
+    }
+  }
+}
+```
 
 **Si utilisé depuis les sources :**
 ```json
