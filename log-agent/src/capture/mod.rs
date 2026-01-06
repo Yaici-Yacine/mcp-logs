@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::types::{LogLevel, LogMessage, LogSource};
 use owo_colors::OwoColorize;
 use std::process::Stdio;
@@ -8,11 +9,12 @@ use tokio::sync::mpsc;
 pub struct ProcessCapture {
     pub project: String,
     pub command: Vec<String>,
+    pub config: Config,
 }
 
 impl ProcessCapture {
-    pub fn new(project: String, command: Vec<String>) -> Self {
-        Self { project, command }
+    pub fn new(project: String, command: Vec<String>, config: Config) -> Self {
+        Self { project, command, config }
     }
 
     /// Lance le processus et retourne un handle
@@ -64,6 +66,7 @@ impl ProcessCapture {
         // Capture stdout
         let tx_stdout = tx.clone();
         let project_stdout = self.project.clone();
+        let config_stdout = self.config.clone();
         let stdout_task = tokio::spawn(async move {
             capture_stream(
                 BufReader::new(stdout),
@@ -71,6 +74,7 @@ impl ProcessCapture {
                 LogSource::Stdout,
                 pid,
                 tx_stdout,
+                config_stdout,
             )
             .await;
         });
@@ -78,6 +82,7 @@ impl ProcessCapture {
         // Capture stderr
         let tx_stderr = tx;
         let project_stderr = self.project.clone();
+        let config_stderr = self.config.clone();
         let stderr_task = tokio::spawn(async move {
             capture_stream(
                 BufReader::new(stderr),
@@ -85,6 +90,7 @@ impl ProcessCapture {
                 LogSource::Stderr,
                 pid,
                 tx_stderr,
+                config_stderr,
             )
             .await;
         });
@@ -116,6 +122,7 @@ async fn capture_stream<R>(
     source: LogSource,
     pid: u32,
     tx: mpsc::Sender<LogMessage>,
+    config: Config,
 ) where
     R: tokio::io::AsyncRead + Unpin,
 {
@@ -132,7 +139,7 @@ async fn capture_stream<R>(
                     let log = LogMessage::new(project.clone(), message.clone(), source.clone(), pid);
                     
                     // Affiche dans le terminal avec coloration
-                    print_colored_log(&log);
+                    print_colored_log(&log, &config);
 
                     // Envoie le log au channel
                     if let Err(e) = tx.send(log).await {
@@ -149,25 +156,73 @@ async fn capture_stream<R>(
     }
 }
 
-/// Affiche un log avec coloration selon le niveau
-fn print_colored_log(log: &LogMessage) {
+/// Affiche un log avec coloration selon le niveau et la config
+fn print_colored_log(log: &LogMessage, config: &Config) {
     use owo_colors::OwoColorize;
+    use crate::config::types::{Color, Style};
     
-    // Pas de préfixe, juste le message colorisé selon le niveau
-    let message_str = &log.data.message;
+    // Vérifier si les couleurs sont activées
+    if !config.output.colors {
+        eprintln!("{}", log.data.message);
+        return;
+    }
     
-    match log.data.level {
-        LogLevel::Error => {
-            eprintln!("{}", message_str.red().bold());
-        }
-        LogLevel::Warn => {
-            eprintln!("{}", message_str.yellow());
-        }
-        LogLevel::Debug => {
-            eprintln!("{}", message_str.blue());
-        }
-        LogLevel::Info => {
-            eprintln!("{}", message_str);
+    // Obtenir le style de couleur selon le niveau
+    let color_style = match log.data.level {
+        LogLevel::Error => &config.colors.error,
+        LogLevel::Warn => &config.colors.warn,
+        LogLevel::Debug => &config.colors.debug,
+        LogLevel::Info => &config.colors.info,
+    };
+    
+    let message = &log.data.message;
+    
+    // Déterminer si on a des styles
+    let has_bold = color_style.style.iter().any(|s| matches!(s, Style::Bold));
+    let has_italic = color_style.style.iter().any(|s| matches!(s, Style::Italic));
+    
+    // Macro pour appliquer couleur + styles de manière DRY
+    macro_rules! apply_color {
+        ($msg:expr, $color_method:ident) => {{
+            let colored = $msg.$color_method();
+            if has_bold && has_italic {
+                eprintln!("{}", colored.bold().italic());
+            } else if has_bold {
+                eprintln!("{}", colored.bold());
+            } else if has_italic {
+                eprintln!("{}", colored.italic());
+            } else {
+                eprintln!("{}", colored);
+            }
+        }};
+    }
+    
+    // Appliquer la couleur avec les styles
+    match &color_style.fg {
+        Some(Color::Red) => apply_color!(message, red),
+        Some(Color::Yellow) => apply_color!(message, yellow),
+        Some(Color::Blue) => apply_color!(message, blue),
+        Some(Color::Green) => apply_color!(message, green),
+        Some(Color::Magenta) => apply_color!(message, magenta),
+        Some(Color::Cyan) => apply_color!(message, cyan),
+        Some(Color::White) => apply_color!(message, white),
+        Some(Color::Black) => apply_color!(message, black),
+        Some(Color::BrightRed) => apply_color!(message, bright_red),
+        Some(Color::BrightYellow) => apply_color!(message, bright_yellow),
+        Some(Color::BrightBlue) => apply_color!(message, bright_blue),
+        Some(Color::BrightGreen) => apply_color!(message, bright_green),
+        Some(Color::BrightMagenta) => apply_color!(message, bright_magenta),
+        Some(Color::BrightCyan) => apply_color!(message, bright_cyan),
+        Some(Color::BrightWhite) => apply_color!(message, bright_white),
+        Some(Color::BrightBlack) => apply_color!(message, bright_black),
+        None => {
+            if has_bold {
+                eprintln!("{}", message.bold());
+            } else if has_italic {
+                eprintln!("{}", message.italic());
+            } else {
+                eprintln!("{}", message);
+            }
         }
     }
 }

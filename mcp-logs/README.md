@@ -278,20 +278,136 @@ This MCP server works with the `mcp-log-agent` CLI to provide real-time log capt
 
 ## Configuration
 
+### Configuration Files
+
+`mcp-logs` supports flexible configuration via JSON files and environment variables.
+
+**Configuration priority (highest to lowest):**
+1. Environment variables (`MCP_LOGS_*`)
+2. Local config file (`.mcp-logs.json`)
+3. Global config file (`~/.config/mcp-logs/config.json`)
+4. Default values
+
+### Quick Start: Create Configuration
+
+```bash
+# Create local config (project directory) with detailed comments
+bun run config.ts init
+
+# Create global config (user-wide)
+bun run config.ts init --global
+
+# Create minimal config without comments
+bun run config.ts init --minimal
+```
+
+This generates a JSON configuration file with detailed inline comments for each parameter.
+
+### Configuration Commands
+
+```bash
+# Initialize config with detailed comments
+bun run config.ts init [--global] [--minimal]
+
+# Show current merged configuration
+bun run config.ts show
+
+# Display help
+bun run config.ts help
+```
+
+### Configuration File Structure
+
+Example `.mcp-logs.json` with comments:
+
+```json
+{
+  "server": {
+    "socket_path": "/tmp/log-agent.sock",
+    "_socket_path_comment": "Path to Unix domain socket for receiving logs from agents",
+    "_socket_path_env": "MCP_LOGS_SOCKET_PATH",
+    
+    "name": "mcp-logs",
+    "version": "0.1.1",
+    "verbose": false,
+    "_verbose_comment": "Enable verbose logging from the server itself",
+    "_verbose_env": "MCP_LOGS_VERBOSE or VERBOSE"
+  },
+  
+  "storage": {
+    "max_logs": 10000,
+    "_max_logs_comment": "Maximum number of logs to keep in memory (FIFO)",
+    "_max_logs_note": "Older logs are discarded when limit is reached",
+    "_max_logs_env": "MCP_LOGS_MAX_LOGS",
+    
+    "storage_type": "memory",
+    "_storage_type_values": "memory | sqlite | postgres"
+  },
+  
+  "logging": {
+    "log_level": "info",
+    "_log_level_values": "debug | info | warn | error",
+    
+    "log_file": null,
+    "_log_file_comment": "Path to log file (null = console only)",
+    
+    "log_format": "text",
+    "_log_format_values": "text | json"
+  },
+  
+  "performance": {
+    "buffer_size": 1000,
+    "connection_timeout": 30000,
+    "max_connections": 100
+  },
+  
+  "features": {
+    "auto_cleanup": true,
+    "max_log_age_hours": 24,
+    "enable_stats": true
+  }
+}
+```
+
+> **Note:** Lines starting with `_` are comments and are ignored by the loader. They provide inline documentation.
+
+### Environment Variables
+
+Override any config value using environment variables:
+
+```bash
+# Server settings
+export MCP_LOGS_SOCKET_PATH="/custom/path.sock"
+export MCP_LOGS_VERBOSE=true
+
+# Storage settings
+export MCP_LOGS_MAX_LOGS=20000
+
+# Logging settings
+export MCP_LOGS_LOG_LEVEL=debug
+
+# Start server with env vars
+mcp-logs
+```
+
 ### Socket Path
 
 Default: `/tmp/log-agent.sock`
 
-To change, modify `SOCKET_PATH` in `src/server/index.ts`.
+Change via:
+- Config file: `server.socket_path = "/custom/path.sock"`
+- Environment: `MCP_LOGS_SOCKET_PATH=/custom/path.sock`
+- Both server and agent must use the same socket path
 
 ### Log Storage Limit
 
 Default: 10,000 logs (FIFO)
 
-To change, modify the LogStore initialization in `index.ts`:
-```typescript
-const logStore = new LogStore(20000); // Change limit
-```
+Change via:
+- Config file: `storage.max_logs = 20000`
+- Environment: `MCP_LOGS_MAX_LOGS=20000`
+
+When the limit is reached, older logs are automatically discarded (First In, First Out).
 
 ## Log Protocol
 
@@ -368,6 +484,26 @@ Yacine Yaici - yaiciy01@gmail.com
 - [npm Package](https://www.npmjs.com/package/mcp-logs)
 
 ## Changelog
+
+### 0.1.1 (2026-01-06)
+
+- **Configuration System**: Complete configuration management with JSON files
+  - Global config: `~/.config/mcp-logs/config.json`
+  - Local config: `.mcp-logs.json`
+  - Environment variable support (`MCP_LOGS_*`)
+  - Configuration priority: env vars > local > global > defaults
+- **Configuration CLI**: New `config.ts` script for managing configuration
+  - `init` command with `--global` and `--minimal` options
+  - `show` command to display merged configuration
+  - Inline comments with `_comment` fields for each parameter
+- **Configurable Settings**:
+  - Server: socket_path, name, version, verbose
+  - Storage: max_logs, storage_type (memory/sqlite/postgres prep)
+  - Logging: log_level, log_file, log_format
+  - Performance: buffer_size, connection_timeout, max_connections
+  - Features: auto_cleanup, max_log_age_hours, enable_stats
+- **Detailed Documentation**: Every config parameter has inline explanation
+- **Version Bump**: Updated to 0.1.1 in package.json
 
 ### 0.0.1 (2025-12-24)
 

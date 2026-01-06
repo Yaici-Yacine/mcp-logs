@@ -75,25 +75,54 @@ Add to your MCP client configuration (OpenCode, Claude Desktop, Cline, etc.):
 
 Restart your client (OpenCode, Claude Desktop, Cline) to load the MCP server.
 
-### 4. Capture logs from your project
+### 4. Set up your project (Recommended)
+
+Create a local configuration file in your project directory:
 
 ```bash
+cd your-project
+mcp-log-agent config init --local
+```
+
+Edit `.mcp-log-agent.toml` and set your default command:
+
+```toml
+[agent]
+default_project = "my-app"
+# Uncomment and set your command:
+default_command = ["npm", "start"]
+# Or: default_command = ["bun", "dev"]
+# Or: default_command = ["cargo", "run"]
+```
+
+### 5. Capture logs from your project
+
+**With local config (simple):**
+```bash
+# Just run without arguments!
+mcp-log-agent run
+```
+
+**Without config (specify command):**
+```bash
 # Capture from any command
-mcp-log-agent run --project my-app bun dev
+mcp-log-agent run --project my-app -- bun dev
 
 # Node.js project
-mcp-log-agent run --project api npm start
+mcp-log-agent run --project api -- npm start
 
 # Rust project
-mcp-log-agent run --project backend cargo run
+mcp-log-agent run --project backend -- cargo run
 
 # Python project
-mcp-log-agent run --project ml-script python train.py
+mcp-log-agent run --project ml-script -- python train.py
 ```
+
+> **Note:** The `--` separator is needed when providing a command to separate mcp-log-agent options from your command arguments.
 
 Logs will be displayed in your terminal (colorized) AND captured by the MCP server.
 
-### 5. Query logs via your MCP client
+### 6. Query logs via your MCP client
 
 In your MCP client (OpenCode, Claude Desktop, Cline), ask questions like:
 
@@ -113,27 +142,41 @@ The client will automatically call the appropriate MCP tools (`get_recent_logs`,
 Spawn a process and capture its logs:
 
 ```bash
-mcp-log-agent run --project <PROJECT_NAME> <COMMAND> [ARGS...]
+# With local config containing default_command
+mcp-log-agent run
+
+# With specific command
+mcp-log-agent run [OPTIONS] -- <COMMAND> [ARGS...]
 ```
 
 **Options:**
-- `--project, -p`: Project name for identification (default: "default")
-- Command and arguments: The command to run with its arguments
+- `--project, -p`: Project name for identification (overrides config)
+- `--verbose, -v`: Enable verbose output
+- Command and arguments: The command to run (uses `default_command` from config if not provided)
 
 **Examples:**
 
 ```bash
+# Simple usage with config
+cd my-project
+mcp-log-agent config init --local
+# Edit .mcp-log-agent.toml: default_command = ["npm", "start"]
+mcp-log-agent run
+
 # Web server
-mcp-log-agent run --project frontend bun dev
+mcp-log-agent run --project frontend -- bun dev
 
 # Build process
-mcp-log-agent run --project build npm run build
+mcp-log-agent run --project build -- npm run build
 
 # Tests
-mcp-log-agent run --project tests cargo test
+mcp-log-agent run --project tests -- cargo test
 
 # Shell script
-mcp-log-agent run --project demo bash ./script.sh
+mcp-log-agent run --project demo -- bash ./script.sh
+
+# Override project name from config
+mcp-log-agent run --project custom-name -- npm start
 ```
 
 ### Test Command
@@ -187,11 +230,218 @@ Levels are automatically inferred from message content.
 
 ## Configuration
 
+### Configuration Files
+
+`mcp-log-agent` supports flexible configuration via files, environment variables, and CLI arguments.
+
+**Configuration priority (highest to lowest):**
+1. CLI arguments
+2. Environment variables (`MCP_LOG_*`)
+3. Local config file (`.mcp-log-agent.toml`)
+4. Global config file (`~/.config/mcp-log-agent/config.toml`)
+5. Default values
+
+### Quick Start: Create Configuration
+
+```bash
+# Create local config (project directory)
+mcp-log-agent config init --local
+
+# Create global config (user-wide)
+mcp-log-agent config init --global
+```
+
+This generates a fully commented configuration file with explanations for each parameter.
+
+**Pro tip:** Set `default_command` in your local config to avoid typing the command every time:
+
+```toml
+[agent]
+default_project = "my-awesome-app"
+default_command = ["npm", "run", "dev"]
+# Now just run: mcp-log-agent run
+```
+
+### Configuration Commands
+
+```bash
+# Initialize config with detailed comments
+mcp-log-agent config init [--global|--local]
+
+# Show current merged configuration
+mcp-log-agent config show [--json]
+
+# Get specific config value
+mcp-log-agent config get <key>
+
+# Set a config value
+mcp-log-agent config set <key> <value> [--global]
+
+# List all available config keys
+mcp-log-agent config list
+
+# Validate configuration
+mcp-log-agent config validate
+
+# Detect which config files are loaded
+mcp-log-agent config detect
+
+# Reset to defaults
+mcp-log-agent config reset [--global|--local]
+```
+
+### Color Scheme Management
+
+Customize terminal colors for different log levels:
+
+```bash
+# List available color schemes
+mcp-log-agent config colors list
+
+# Apply a color scheme
+mcp-log-agent config colors set <scheme>
+
+# Preview a scheme before applying
+mcp-log-agent config colors preview <scheme>
+
+# Test current colors
+mcp-log-agent config colors test
+```
+
+**Available color schemes:**
+- `default` - Standard colors (red errors, yellow warnings)
+- `solarized-dark` - Solarized Dark theme
+- `high-contrast` - High contrast for accessibility
+- `minimal` - Minimal colors, no bold
+- `monochrome` - Shades of gray only
+
+### Setting Configuration Values
+
+You can modify configuration values directly using the `config set` command:
+
+```bash
+# Set a boolean value
+mcp-log-agent config set agent.verbose true
+
+# Set an integer value
+mcp-log-agent config set agent.connection_timeout 10
+
+# Set a string value
+mcp-log-agent config set agent.socket_path "/tmp/my-socket.sock"
+
+# Set an enum value
+mcp-log-agent config set output.format plain
+mcp-log-agent config set filters.min_level warn
+
+# Set an array value (JSON format)
+mcp-log-agent config set agent.default_command '["npm", "run", "dev"]'
+
+# Set an array value (comma-separated)
+mcp-log-agent config set filters.ignore_patterns "node_modules,webpack,DEBUG:"
+
+# Modify global config instead of local
+mcp-log-agent config set agent.verbose true --global
+```
+
+**Key format:** `section.field` (e.g., `agent.socket_path`, `output.colors`, `filters.min_level`)
+
+**Supported types:**
+- Booleans: `true`, `false`
+- Integers: `5`, `1000`, `100`
+- Strings: `"value"` or `value`
+- Enums: `colored`, `plain`, `json`, `debug`, `info`, `warn`, `error`
+- Arrays: `["item1", "item2"]` (JSON) or `item1,item2` (comma-separated)
+
+### Configuration File Structure
+
+Example `.mcp-log-agent.toml`:
+
+```toml
+[agent]
+socket_path = "/tmp/log-agent.sock"
+default_project = "my-app"
+
+# Set default command to run with just "mcp-log-agent run"
+default_command = ["npm", "start"]
+# Or: default_command = ["bun", "dev"]
+# Or: default_command = ["cargo", "run", "--release"]
+
+verbose = false
+connection_timeout = 5
+retry_attempts = 3
+
+[output]
+colors = true                    # Enable/disable colors
+format = "colored"               # colored | plain | json
+show_timestamps = false
+show_pid = false
+
+[colors.error]
+fg = "red"
+style = ["bold"]
+
+[colors.warn]
+fg = "yellow"
+style = []
+
+[filters]
+ignore_patterns = []             # Regex patterns to exclude
+min_level = "debug"              # debug | info | warn | error
+
+[performance]
+buffer_size = 1000
+flush_interval = 100
+```
+
+### Environment Variables
+
+Override any config value using environment variables:
+
+```bash
+# Agent settings
+export MCP_LOG_AGENT_SOCKET_PATH="/custom/path.sock"
+export MCP_LOG_AGENT_DEFAULT_PROJECT="my-project"
+export MCP_LOG_AGENT_VERBOSE=true
+export MCP_LOG_AGENT_CONNECTION_TIMEOUT=10
+export MCP_LOG_AGENT_RETRY_ATTEMPTS=5
+
+# Output settings
+export MCP_LOG_AGENT_COLORS=false
+export MCP_LOG_AGENT_FORMAT=json
+export MCP_LOG_AGENT_SHOW_TIMESTAMPS=true
+export MCP_LOG_AGENT_SHOW_PID=true
+
+# Color customization
+export MCP_LOG_COLOR_ERROR_FG=bright_red
+export MCP_LOG_COLOR_WARN_FG=bright_yellow
+export MCP_LOG_COLOR_INFO_FG=cyan
+export MCP_LOG_COLOR_DEBUG_FG=bright_blue
+
+# Filter settings
+export MCP_LOG_FILTER_MIN_LEVEL=warn
+
+# Performance settings
+export MCP_LOG_AGENT_BUFFER_SIZE=2000
+export MCP_LOG_AGENT_FLUSH_INTERVAL=50
+
+# Run with env vars
+mcp-log-agent run -- npm start
+```
+
+**Configuration priority** (highest to lowest):
+1. Environment variables (`MCP_LOG_*`)
+2. Local config file (`.mcp-log-agent.toml`)
+3. Global config file (`~/.config/mcp-log-agent/config.toml`)
+4. Default values
+
 ### Socket Path
 
 Default: `/tmp/log-agent.sock`
 
-To change the socket path, modify `SOCKET_PATH` in `src/socket.rs` and recompile.
+Change via:
+- Config file: `agent.socket_path = "/custom/path.sock"`
+- Environment: `MCP_LOG_AGENT_SOCKET_PATH=/custom/path.sock`
+- Both server and agent must use the same socket path
 
 ## Integration with MCP
 
@@ -256,6 +506,42 @@ Yacine Yaici - yaiciy01@gmail.com
 - [MCP Protocol](https://modelcontextprotocol.io/) - Model Context Protocol specification
 
 ## Changelog
+
+### 0.1.1 (2026-01-06)
+
+- **Configuration System**: Complete configuration management with TOML files
+  - Global config: `~/.config/mcp-log-agent/config.toml`
+  - Local config: `.mcp-log-agent.toml`
+  - Environment variable support (`MCP_LOG_*`)
+  - Configuration priority: CLI args > env vars > local > global > defaults
+  - **Field-by-field config merging**: Local configs only override specified fields, preserving unset values from global/defaults
+- **Default Command**: NEW `default_command` setting
+  - Set once in config, then just run `mcp-log-agent run` without arguments
+  - Example: `default_command = ["npm", "start"]`
+  - Simplifies workflow: no need to type the full command every time
+- **Color Customization**: 
+  - 5 predefined color schemes (default, solarized-dark, high-contrast, minimal, monochrome)
+  - Custom color configuration per log level
+  - Style options: bold, italic, underline, dimmed, etc.
+  - Environment variable support for colors: `MCP_LOG_COLOR_ERROR_FG`, `MCP_LOG_COLOR_WARN_FG`, etc.
+- **Config Commands**: 12 new commands for configuration management
+  - `config init`, `show`, `get`, `list`, `validate`, `detect`, `reset`
+  - **`config set`**: Modify config values directly from CLI
+    - Supports all types: boolean, integer, string, enum, array
+    - Example: `mcp-log-agent config set agent.verbose true`
+    - Example: `mcp-log-agent config set agent.default_command '["npm", "run", "dev"]'`
+  - `config colors list/set/preview/test`
+- **Environment Variables**: Extended support
+  - All agent, output, performance settings
+  - Color foreground customization (error, warn, info, debug)
+  - Filter min_level configuration
+  - Complete list in documentation
+- **Detailed Documentation**: Every config parameter has inline comments with:
+  - Description of what it does
+  - Default value
+  - Possible values
+  - Corresponding environment variable
+- **Bug Fixes**: Improved error handling and connection retry logic
 
 ### 0.1.0 (2025-12-24)
 

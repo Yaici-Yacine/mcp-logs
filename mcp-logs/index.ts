@@ -11,17 +11,20 @@ import { LogStore } from "./src/store/index.js";
 import { SocketServer } from "./src/server/index.js";
 import { ToolHandlers } from "./src/mcp/handlers.js";
 import { TOOLS } from "./src/mcp/tools.js";
+import { loadConfig } from "./src/config/index.js";
 
 async function main() {
-  const verbose = process.env.VERBOSE === "true";
+  // Load configuration
+  const config = loadConfig();
+  const verbose = config.logging.log_level === "debug" || config.server.verbose;
   
   if (verbose) console.log("🚀 MCP Logs Server starting...");
 
   // Store global pour les logs
-  const logStore = new LogStore(10000);
+  const logStore = new LogStore(config.storage.max_logs);
 
   // Serveur Unix socket
-  const socketServer = new SocketServer(logStore, undefined, verbose);
+  const socketServer = new SocketServer(logStore, config.server.socket_path, verbose);
   await socketServer.start();
 
   // Handlers pour les outils MCP
@@ -30,8 +33,8 @@ async function main() {
   // Serveur MCP
   const mcpServer = new Server(
     {
-      name: "mcp-logs",
-      version: "1.0.0",
+      name: config.server.name,
+      version: config.server.version,
     },
     {
       capabilities: {

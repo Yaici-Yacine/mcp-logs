@@ -204,23 +204,45 @@ Dans votre client MCP, vous devriez maintenant voir les outils suivants disponib
 - `list_projects`
 - `clear_logs`
 
-#### 4. Lancer votre application avec l'agent
+#### 4. Configurer votre projet (Recommandé)
 
-Dans un terminal séparé, lancez votre application avec l'agent :
+Créez une configuration locale dans le répertoire de votre projet :
 
-**Si installé globalement :**
 ```bash
-mcp-log-agent run --project my-app npm run dev
+cd votre-projet
+mcp-log-agent config init --local
 ```
 
-**Depuis les sources :**
-```bash
-./log-agent/target/release/mcp-log-agent run --project my-app npm run dev
+Éditez `.mcp-log-agent.toml` pour définir votre commande par défaut :
+
+```toml
+[agent]
+default_project = "mon-app"
+# Décommentez et configurez votre commande :
+default_command = ["npm", "start"]
+# Ou : default_command = ["bun", "dev"]
+# Ou : default_command = ["cargo", "run"]
 ```
+
+#### 5. Lancer votre application avec l'agent
+
+**Méthode simple (avec config locale) :**
+```bash
+# Lancez simplement sans arguments !
+mcp-log-agent run
+```
+
+**Méthode traditionnelle (sans config) :**
+```bash
+# Spécifiez la commande directement
+mcp-log-agent run --project my-app -- npm run dev
+```
+
+> **Note:** Le séparateur `--` est nécessaire pour séparer les options de mcp-log-agent de votre commande.
 
 Vos logs s'affichent maintenant dans le terminal ET sont capturés par le serveur MCP.
 
-#### 5. Analyser les logs via MCP
+#### 6. Analyser les logs via MCP
 
 Dans votre client MCP (OpenCode, Claude, Cline), utilisez les outils disponibles :
 
@@ -238,27 +260,53 @@ Le client MCP appellera automatiquement les outils appropriés (`list_projects`,
 
 ## 📖 Exemples d'utilisation
 
-### Surveiller une application Next.js
+### Workflow simple avec configuration locale
 
 ```bash
-mcp-log-agent run --project nextjs-app npm run dev
+# 1. Configuration initiale (une fois par projet)
+cd mon-projet
+mcp-log-agent config init --local
+
+# 2. Éditez .mcp-log-agent.toml
+# Décommentez: default_command = ["npm", "start"]
+
+# 3. Lancez simplement (à chaque fois)
+mcp-log-agent run
+```
+
+### Surveiller une application Next.js
+
+**Avec config:**
+```bash
+cd nextjs-app
+mcp-log-agent config init --local
+# Configurez: default_command = ["npm", "run", "dev"]
+mcp-log-agent run
+```
+
+**Sans config:**
+```bash
+mcp-log-agent run --project nextjs-app -- npm run dev
 ```
 
 ### Capturer les logs de plusieurs projets
 
 **Terminal 1 - Frontend :**
 ```bash
-mcp-log-agent run --project frontend npm run dev
+cd frontend
+mcp-log-agent run  # utilise default_command de la config locale
 ```
 
 **Terminal 2 - Backend :**
 ```bash
-mcp-log-agent run --project backend cargo run
+cd backend
+mcp-log-agent run  # utilise default_command de la config locale
 ```
 
 **Terminal 3 - API :**
 ```bash
-mcp-log-agent run --project api python main.py
+cd api
+mcp-log-agent run  # utilise default_command de la config locale
 ```
 
 Les logs de tous les projets seront capturés simultanément et différenciables par leur nom.
@@ -340,33 +388,171 @@ Le niveau est inféré automatiquement depuis le contenu du message (détection 
 
 ## ⚙️ Configuration
 
+### Système de Configuration v0.1.1
+
+Les deux composants (`mcp-log-agent` et `mcp-logs`) supportent maintenant une configuration complète via fichiers et variables d'environnement.
+
+#### log-agent (CLI Rust)
+
+**Créer un fichier de configuration :**
+```bash
+# Local (projet actuel)
+mcp-log-agent config init --local
+
+# Global (utilisateur)
+mcp-log-agent config init --global
+```
+
+**Fichier généré** : `.mcp-log-agent.toml` avec commentaires détaillés ligne par ligne
+
+**Exemple de configuration simple :**
+```toml
+[agent]
+default_project = "mon-app"
+default_command = ["npm", "start"]  # Lancez avec juste "mcp-log-agent run"
+```
+
+**Commandes disponibles :**
+```bash
+mcp-log-agent config show              # Afficher la config actuelle
+mcp-log-agent config get <key>         # Obtenir une valeur spécifique
+mcp-log-agent config set <key> <value> # Modifier une valeur
+mcp-log-agent config detect            # Détecter les sources de config
+mcp-log-agent config list              # Lister toutes les clés disponibles
+mcp-log-agent config colors list       # Lister les schémas de couleurs
+mcp-log-agent config colors set <nom>  # Appliquer un schéma
+```
+
+**Exemples config set :**
+```bash
+# Modifier des valeurs directement
+mcp-log-agent config set agent.verbose true
+mcp-log-agent config set agent.connection_timeout 10
+mcp-log-agent config set output.format plain
+mcp-log-agent config set filters.min_level warn
+mcp-log-agent config set agent.default_command '["npm", "run", "dev"]'
+```
+
+**Schémas de couleurs prédéfinis :**
+- `default` - Couleurs par défaut (rouge/jaune/bleu)
+- `solarized-dark` - Thème Solarized Dark
+- `high-contrast` - Contraste élevé pour l'accessibilité
+- `minimal` - Couleurs minimales
+- `monochrome` - Nuances de gris uniquement
+
+**Variables d'environnement :**
+```bash
+# Agent settings
+export MCP_LOG_AGENT_SOCKET_PATH="/custom/path.sock"
+export MCP_LOG_AGENT_DEFAULT_PROJECT="my-project"
+export MCP_LOG_AGENT_VERBOSE=true
+export MCP_LOG_AGENT_CONNECTION_TIMEOUT=10
+
+# Output settings
+export MCP_LOG_AGENT_COLORS=false
+export MCP_LOG_AGENT_FORMAT=json
+export MCP_LOG_AGENT_SHOW_TIMESTAMPS=true
+
+# Color customization
+export MCP_LOG_COLOR_ERROR_FG=bright_red
+export MCP_LOG_COLOR_WARN_FG=bright_yellow
+
+# Filters
+export MCP_LOG_FILTER_MIN_LEVEL=warn
+
+# Performance
+export MCP_LOG_AGENT_BUFFER_SIZE=2000
+```
+
+#### mcp-logs (Serveur MCP)
+
+**Créer un fichier de configuration :**
+```bash
+cd mcp-logs
+
+# Local avec commentaires détaillés
+bun run config.ts init
+
+# Global
+bun run config.ts init --global
+
+# Minimal sans commentaires
+bun run config.ts init --minimal
+```
+
+**Fichier généré** : `.mcp-logs.json` avec commentaires inline (`_comment` fields)
+
+**Commandes disponibles :**
+```bash
+bun run config.ts show    # Afficher la config actuelle
+bun run config.ts help    # Aide
+```
+
+**Variables d'environnement :**
+```bash
+export MCP_LOGS_SOCKET_PATH="/custom/path.sock"
+export MCP_LOGS_MAX_LOGS=20000
+export MCP_LOGS_VERBOSE=true
+export MCP_LOGS_LOG_LEVEL=debug
+```
+
+### Hiérarchie de Configuration
+
+**Priorité (du plus haut au plus bas) :**
+1. Arguments CLI
+2. Variables d'environnement (`MCP_LOG_*` / `MCP_LOGS_*`)
+3. Config locale (`.mcp-log-agent.toml` / `.mcp-logs.json`)
+4. Config globale (`~/.config/*/config.*`)
+5. Valeurs par défaut
+
+### Configuration Rapide
+
+**Exemple : Changer le chemin du socket pour les deux composants**
+
+```bash
+# log-agent
+echo 'MCP_LOG_AGENT_SOCKET_PATH="/custom/path.sock"' >> ~/.bashrc
+
+# mcp-logs
+echo 'MCP_LOGS_SOCKET_PATH="/custom/path.sock"' >> ~/.bashrc
+
+# Ou dans les fichiers de config
+mcp-log-agent config init --local
+# Modifier: agent.socket_path = "/custom/path.sock"
+
+cd mcp-logs && bun run config.ts init
+# Modifier: server.socket_path = "/custom/path.sock"
+```
+
 ### Mode verbose
 
 Par défaut, le serveur MCP est en mode silencieux. Pour activer les logs détaillés :
 
+Via config :
 ```bash
-VERBOSE=true mcp-logs-server
+# mcp-logs
+bun run config.ts init
+# Modifier: server.verbose = true
+```
+
+Via environnement :
+```bash
+VERBOSE=true mcp-logs
 # ou
-VERBOSE=true bun run index.ts
-```
-
-### Changer le chemin du socket
-
-**CLI Rust** (`log-agent/src/socket.rs`) :
-```rust
-pub const SOCKET_PATH: &str = "/tmp/log-agent.sock";
-```
-
-**Serveur MCP** (`mcp-logs/src/server/index.ts`) :
-```typescript
-export const SOCKET_PATH = "/tmp/log-agent.sock";
+MCP_LOGS_VERBOSE=true mcp-logs
 ```
 
 ### Limite de logs en mémoire
 
-Dans `mcp-logs/index.ts` :
-```typescript
-const logStore = new LogStore(10000); // 10000 logs max (FIFO)
+Via config (`mcp-logs`):
+```bash
+bun run config.ts init
+# Modifier: storage.max_logs = 20000
+```
+
+Via environnement :
+```bash
+MCP_LOGS_MAX_LOGS=20000 mcp-logs
 ```
 
 ---
