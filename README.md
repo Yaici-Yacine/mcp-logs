@@ -471,21 +471,31 @@ export MCP_LOG_AGENT_BUFFER_SIZE=2000
 cd mcp-logs
 
 # Local avec commentaires détaillés
-bun run config.ts init
+bun run index.ts config init
 
 # Global
-bun run config.ts init --global
+bun run index.ts config init --global
 
 # Minimal sans commentaires
-bun run config.ts init --minimal
+bun run index.ts config init --minimal
 ```
 
 **Fichier généré** : `.mcp-logs.json` avec commentaires inline (`_comment` fields)
 
 **Commandes disponibles :**
 ```bash
-bun run config.ts show    # Afficher la config actuelle
-bun run config.ts help    # Aide
+bun run index.ts config show                    # Afficher la config actuelle
+bun run index.ts config get <key>               # Obtenir une valeur spécifique
+bun run index.ts config set <key> <value>       # Modifier une valeur
+bun run index.ts config list                    # Lister toutes les clés
+bun run index.ts config help                    # Aide
+```
+
+**Exemples config set :**
+```bash
+bun run index.ts config set server.verbose true
+bun run index.ts config set storage.max_logs 20000
+bun run index.ts config set logging.log_level debug --global
 ```
 
 **Variables d'environnement :**

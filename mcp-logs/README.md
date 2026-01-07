@@ -292,13 +292,13 @@ This MCP server works with the `mcp-log-agent` CLI to provide real-time log capt
 
 ```bash
 # Create local config (project directory) with detailed comments
-bun run config.ts init
+bun run index.ts config init
 
 # Create global config (user-wide)
-bun run config.ts init --global
+bun run index.ts config init --global
 
 # Create minimal config without comments
-bun run config.ts init --minimal
+bun run index.ts config init --minimal
 ```
 
 This generates a JSON configuration file with detailed inline comments for each parameter.
@@ -307,13 +307,31 @@ This generates a JSON configuration file with detailed inline comments for each 
 
 ```bash
 # Initialize config with detailed comments
-bun run config.ts init [--global] [--minimal]
+bun run index.ts config init [--global] [--minimal]
 
 # Show current merged configuration
-bun run config.ts show
+bun run index.ts config show
+
+# Get specific configuration value
+bun run index.ts config get <section.field>
+
+# Set configuration value
+bun run index.ts config set <section.field> <value> [--global]
+
+# List all available configuration keys
+bun run index.ts config list
 
 # Display help
-bun run config.ts help
+bun run index.ts config help
+```
+
+**Examples:**
+```bash
+# Get/set configuration values
+bun run index.ts config get server.verbose
+bun run index.ts config set server.verbose true
+bun run index.ts config set storage.max_logs 20000
+bun run index.ts config set logging.log_level debug --global
 ```
 
 ### Configuration File Structure
@@ -485,6 +503,22 @@ Yacine Yaici - yaiciy01@gmail.com
 
 ## Changelog
 
+### 0.1.2 (2026-01-07)
+
+- **Enhanced Config CLI**: Integrated config management into main binary
+  - Merged standalone `config.ts` into `index.ts` for unified CLI
+  - `bun run index.ts config <command>` - Single entry point
+  - **NEW**: `config get <key>` - Get specific configuration values
+  - **NEW**: `config set <key> <value>` - Modify configuration values directly
+  - **NEW**: `config list` - List all available configuration keys
+  - Support for `--global` flag on `set` command
+  - Type validation for enums (storage_type, log_level, log_format)
+- **Improved User Experience**:
+  - No more separate config.ts file - everything in index.ts
+  - Better help messages with examples
+  - Cleaner command structure
+- **Bug Fixes**: Removed duplicate config.ts file
+
 ### 0.1.1 (2026-01-06)
 
 - **Configuration System**: Complete configuration management with JSON files
@@ -492,9 +526,12 @@ Yacine Yaici - yaiciy01@gmail.com
   - Local config: `.mcp-logs.json`
   - Environment variable support (`MCP_LOGS_*`)
   - Configuration priority: env vars > local > global > defaults
-- **Configuration CLI**: New `config.ts` script for managing configuration
+- **Configuration CLI**: Integrated config commands into main CLI (`index.ts config`)
   - `init` command with `--global` and `--minimal` options
   - `show` command to display merged configuration
+  - **NEW**: `get <key>` command to retrieve specific values
+  - **NEW**: `set <key> <value>` command to modify configuration
+  - **NEW**: `list` command to show all available keys
   - Inline comments with `_comment` fields for each parameter
 - **Configurable Settings**:
   - Server: socket_path, name, version, verbose
@@ -502,6 +539,9 @@ Yacine Yaici - yaiciy01@gmail.com
   - Logging: log_level, log_file, log_format
   - Performance: buffer_size, connection_timeout, max_connections
   - Features: auto_cleanup, max_log_age_hours, enable_stats
+- **CLI Modes**: Single binary supports both server mode and config management
+  - `bun run index.ts` - Start MCP server (default)
+  - `bun run index.ts config <command>` - Config management
 - **Detailed Documentation**: Every config parameter has inline explanation
 - **Version Bump**: Updated to 0.1.1 in package.json
 

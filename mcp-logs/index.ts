@@ -12,8 +12,15 @@ import { SocketServer } from "./src/server/index.js";
 import { ToolHandlers } from "./src/mcp/handlers.js";
 import { TOOLS } from "./src/mcp/tools.js";
 import { loadConfig } from "./src/config/index.js";
+import { runConfigCLI } from "./src/cli/config.js";
 
 async function main() {
+  // Check if running in CLI mode (config commands)
+  const args = process.argv.slice(2);
+  if (args.length > 0 && args[0] === 'config') {
+    await runConfigCLI(args.slice(1));
+    return;
+  }
   // Load configuration
   const config = loadConfig();
   const verbose = config.logging.log_level === "debug" || config.server.verbose;

@@ -51,7 +51,7 @@ export const DEFAULT_CONFIG: Config = {
     socket_path: process.env.MCP_LOGS_SOCKET_PATH || '/tmp/log-agent.sock',
     verbose: process.env.MCP_LOGS_VERBOSE === 'true' || process.env.VERBOSE === 'true',
     name: 'mcp-logs',
-    version: '0.1.1',
+    version: '0.1.2',
   },
   storage: {
     max_logs: 10000,
