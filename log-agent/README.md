@@ -8,6 +8,12 @@ Real-time log capture CLI for development projects with MCP (Model Context Proto
 ## Features
 
 - Capture stdout/stderr from any process in real-time
+- **Interactive TUI (Terminal User Interface)** with watch mode
+  - Real-time scrollable log viewer
+  - Mouse support (scroll, click to select)
+  - Process control (restart, quit, clear logs)
+  - Auto-countdown on process exit
+  - Performance optimized (frame rate limiting)
 - Stream logs to MCP server via Unix socket
 - JSON-based structured logging
 - Automatic log level inference (info, warn, error, debug)
@@ -152,7 +158,53 @@ mcp-log-agent run [OPTIONS] -- <COMMAND> [ARGS...]
 **Options:**
 - `--project, -p`: Project name for identification (overrides config)
 - `--verbose, -v`: Enable verbose output
+- `--watch, -w`: Enable interactive TUI (Terminal User Interface) mode
 - Command and arguments: The command to run (uses `default_command` from config if not provided)
+
+#### Watch Mode (TUI)
+
+Watch mode provides an interactive terminal interface for monitoring and controlling your process:
+
+```bash
+# Enable TUI via CLI flag
+mcp-log-agent run --watch -- npm start
+mcp-log-agent run -w -- bun dev
+
+# Or enable in config file
+# In .mcp-log-agent.toml:
+# [agent]
+# watch = true
+mcp-log-agent run  # Auto-launches in TUI mode
+```
+
+**TUI Features:**
+- Real-time scrollable log viewer with color-coded log levels
+- Mouse support: scroll with wheel, click to select lines
+- Keyboard controls:
+  - `↑/↓` or `j/k` - Scroll up/down
+  - `Page Up/Down` - Fast scroll
+  - `Home/End` - Jump to top/bottom
+  - `r` - Restart the process (without quitting the agent)
+  - `c` - Clear all logs
+  - `q` - Quit
+- Auto-countdown: When process exits, shows 5-second countdown before auto-quit
+  - Press `r` to restart immediately
+  - Press `q` to quit immediately
+- Performance optimized: Frame rate limiting prevents lag with high-frequency logs
+
+**TUI Configuration:**
+
+Add to your `.mcp-log-agent.toml`:
+
+```toml
+[agent]
+watch = true  # Enable TUI mode by default
+
+[performance.tui]
+max_logs = 5000          # Max logs kept in memory (default: 5000)
+tick_rate_ms = 250       # Countdown refresh rate (default: 250ms)
+frame_rate_ms = 100      # Max 10 FPS, prevents lag (default: 100ms)
+```
 
 **Examples:**
 
@@ -163,14 +215,20 @@ mcp-log-agent config init --local
 # Edit .mcp-log-agent.toml: default_command = ["npm", "start"]
 mcp-log-agent run
 
-# Web server
+# Watch mode for development server
+mcp-log-agent run -w -- bun dev
+
+# Watch mode with custom project name
+mcp-log-agent run --watch --project frontend -- npm start
+
+# Web server (normal mode)
 mcp-log-agent run --project frontend -- bun dev
 
 # Build process
 mcp-log-agent run --project build -- npm run build
 
-# Tests
-mcp-log-agent run --project tests -- cargo test
+# Tests with TUI
+mcp-log-agent run -w --project tests -- cargo test
 
 # Shell script
 mcp-log-agent run --project demo -- bash ./script.sh
@@ -366,6 +424,7 @@ default_command = ["npm", "start"]
 # Or: default_command = ["bun", "dev"]
 # Or: default_command = ["cargo", "run", "--release"]
 
+watch = false                    # Enable TUI mode by default
 verbose = false
 connection_timeout = 5
 retry_attempts = 3
@@ -391,6 +450,11 @@ min_level = "debug"              # debug | info | warn | error
 [performance]
 buffer_size = 1000
 flush_interval = 100
+
+[performance.tui]
+max_logs = 5000                  # Max logs in TUI memory (default: 5000)
+tick_rate_ms = 250               # Countdown refresh rate (default: 250ms)
+frame_rate_ms = 100              # Max 10 FPS, prevents lag (default: 100ms)
 ```
 
 ### Environment Variables
@@ -506,6 +570,29 @@ Yacine Yaici - yaiciy01@gmail.com
 - [MCP Protocol](https://modelcontextprotocol.io/) - Model Context Protocol specification
 
 ## Changelog
+
+### 0.2.0 (2026-01-16)
+
+- **Interactive TUI (Terminal User Interface)**: NEW watch mode for interactive process monitoring
+  - Enable with `--watch` / `-w` flag or `watch = true` in config
+  - Real-time scrollable log viewer with color-coded log levels
+  - Mouse support: scroll wheel, click to select lines
+  - Keyboard controls: ↑/↓, Page Up/Down, Home/End, j/k navigation
+  - Process control: `r` to restart, `c` to clear logs, `q` to quit
+  - Auto-countdown: 5-second countdown when process exits (configurable)
+  - Performance optimized: Frame rate limiting prevents lag with high-frequency logs
+- **Process Supervision**: NEW supervisor module for process lifecycle management
+  - Start/stop/restart processes without quitting agent
+  - Clean task cleanup and state management
+  - Graceful shutdown handling
+- **TUI Configuration**: New `[performance.tui]` section in config
+  - `max_logs` - Max logs kept in TUI memory (default: 5000)
+  - `tick_rate_ms` - Countdown refresh rate (default: 250ms)
+  - `frame_rate_ms` - Max 10 FPS, prevents lag (default: 100ms)
+- **Dependencies**: Added `ratatui` 0.29 and `crossterm` 0.29 for TUI functionality
+- **Bug Fixes**: 
+  - Fixed countdown display showing "0s" before quitting (was skipping from 1s)
+  - Added comprehensive documentation to supervisor module
 
 ### 0.1.1 (2026-01-06)
 

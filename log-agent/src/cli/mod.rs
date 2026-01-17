@@ -21,6 +21,10 @@ pub enum Commands {
         #[arg(short, long)]
         verbose: bool,
 
+        /// Watch mode - TUI with restart capability (press 'r' to restart, 'q' to quit)
+        #[arg(short, long)]
+        watch: bool,
+
         /// Command to run (e.g., "bun dev", "cargo run", "npm start")
         /// If not provided, uses default_command from config
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]

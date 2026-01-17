@@ -1,0 +1,252 @@
+use crate::config::Config;
+use crate::types::{LogLevel, LogMessage, LogSource};
+use std::collections::VecDeque;
+use std::time::Instant;
+
+/// État de l'application TUI
+#[derive(Debug, Clone, PartialEq)]
+pub enum AppState {
+    Running,
+    WaitingCountdown(u8),
+    Restarting,
+}
+
+/// Ligne de log pour l'affichage
+#[derive(Debug, Clone)]
+pub struct LogLine {
+    pub timestamp: String,
+    pub level: LogLevel,
+    pub message: String,
+    #[allow(dead_code)]
+    pub source: LogSource,
+    pub is_system: bool,
+}
+
+impl From<LogMessage> for LogLine {
+    fn from(log: LogMessage) -> Self {
+        Self {
+            timestamp: log.data.timestamp[11..19].to_string(), // HH:MM:SS
+            level: log.data.level,
+            message: log.data.message,
+            source: log.data.source,
+            is_system: false,
+        }
+    }
+}
+
+impl LogLine {
+    pub fn system(message: String) -> Self {
+        Self {
+            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+            level: LogLevel::Info,
+            message,
+            source: LogSource::Stdout,
+            is_system: true,
+        }
+    }
+}
+
+/// État principal de l'application
+pub struct App {
+    /// Buffer circulaire des logs
+    pub logs: VecDeque<LogLine>,
+    /// Limite de logs en mémoire
+    pub max_logs: usize,
+    /// Offset de scroll (0 = en bas, auto-scroll)
+    pub scroll_offset: usize,
+    /// Auto-scroll activé (suit les nouveaux logs)
+    pub auto_scroll: bool,
+    /// Ligne sélectionnée (pour copie, etc.)
+    pub selected_line: Option<usize>,
+    /// État du superviseur
+    pub state: AppState,
+    /// PID du processus enfant
+    pub pid: Option<u32>,
+    /// Heure de démarrage
+    pub start_time: Instant,
+    /// Flag pour quitter
+    pub should_quit: bool,
+    /// Nom du projet
+    pub project: String,
+    /// Commande exécutée
+    pub command: Vec<String>,
+    /// Configuration
+    #[allow(dead_code)]
+    pub config: Config,
+    /// Hauteur visible des logs (mis à jour par ui.rs)
+    pub visible_height: usize,
+    /// Flag pour forcer le redraw
+    pub needs_redraw: bool,
+}
+
+impl App {
+    pub fn new(project: String, command: Vec<String>, config: Config) -> Self {
+        let max_logs = config.performance.tui.max_logs;
+        
+        Self {
+            logs: VecDeque::with_capacity(max_logs),
+            max_logs,
+            scroll_offset: 0,
+            auto_scroll: true,
+            selected_line: None,
+            state: AppState::Running,
+            pid: None,
+            start_time: Instant::now(),
+            should_quit: false,
+            project,
+            command,
+            config,
+            visible_height: 20,
+            needs_redraw: true,
+        }
+    }
+
+    /// Ajoute un log au buffer
+    pub fn add_log(&mut self, log: LogMessage) {
+        self.logs.push_back(log.into());
+        
+        // Éviction FIFO si trop de logs
+        while self.logs.len() > self.max_logs {
+            self.logs.pop_front();
+        }
+        
+        // Si auto-scroll, rester en bas
+        if self.auto_scroll {
+            self.scroll_offset = 0;
+        }
+        
+        self.needs_redraw = true;
+    }
+
+    /// Ajoute un message système
+    pub fn add_system_log(&mut self, message: String) {
+        self.logs.push_back(LogLine::system(message));
+        
+        while self.logs.len() > self.max_logs {
+            self.logs.pop_front();
+        }
+        
+        if self.auto_scroll {
+            self.scroll_offset = 0;
+        }
+        
+        self.needs_redraw = true;
+    }
+
+    /// Clear tous les logs
+    pub fn clear_logs(&mut self) {
+        self.logs.clear();
+        self.scroll_offset = 0;
+        self.selected_line = None;
+        self.add_system_log("Logs cleared".to_string());
+        self.needs_redraw = true;
+    }
+
+    /// Scroll vers le haut
+    pub fn scroll_up(&mut self, n: usize) {
+        let max_offset = self.logs.len().saturating_sub(self.visible_height);
+        self.scroll_offset = (self.scroll_offset + n).min(max_offset);
+        self.auto_scroll = false;
+        self.needs_redraw = true;
+    }
+
+    /// Scroll vers le bas
+    pub fn scroll_down(&mut self, n: usize) {
+        if self.scroll_offset >= n {
+            self.scroll_offset -= n;
+        } else {
+            self.scroll_offset = 0;
+            self.auto_scroll = true;
+        }
+        self.needs_redraw = true;
+    }
+
+    /// Scroll tout en haut
+    pub fn scroll_to_top(&mut self) {
+        self.scroll_offset = self.logs.len().saturating_sub(self.visible_height);
+        self.auto_scroll = false;
+        self.needs_redraw = true;
+    }
+
+    /// Scroll tout en bas (active auto-scroll)
+    pub fn scroll_to_bottom(&mut self) {
+        self.scroll_offset = 0;
+        self.auto_scroll = true;
+        self.selected_line = None;
+        self.needs_redraw = true;
+    }
+
+    /// Sélectionne une ligne à la position Y donnée
+    pub fn select_line_at(&mut self, row: usize) {
+        // row est relatif au terminal, on doit calculer l'index du log
+        // La zone des logs commence à row 1 (après le header)
+        if row < 1 {
+            return;
+        }
+        
+        let log_row = row - 1;
+        let total_logs = self.logs.len();
+        
+        if total_logs == 0 {
+            return;
+        }
+        
+        // Calculer l'index du log basé sur le scroll
+        // Les logs sont affichés du plus ancien au plus récent
+        // scroll_offset = 0 signifie qu'on voit les derniers logs
+        let visible_start = total_logs.saturating_sub(self.visible_height + self.scroll_offset);
+        let log_index = visible_start + log_row;
+        
+        if log_index < total_logs {
+            self.selected_line = Some(log_index);
+            self.auto_scroll = false;
+            self.needs_redraw = true;
+        }
+    }
+
+    /// Retourne le temps écoulé formaté
+    pub fn uptime(&self) -> String {
+        let elapsed = self.start_time.elapsed();
+        let secs = elapsed.as_secs();
+        
+        if secs < 60 {
+            format!("{}s", secs)
+        } else if secs < 3600 {
+            format!("{}m{}s", secs / 60, secs % 60)
+        } else {
+            format!("{}h{}m", secs / 3600, (secs % 3600) / 60)
+        }
+    }
+
+    /// Set le PID
+    pub fn set_pid(&mut self, pid: Option<u32>) {
+        self.pid = pid;
+        self.needs_redraw = true;
+    }
+
+    /// Set l'état
+    pub fn set_state(&mut self, state: AppState) {
+        self.state = state;
+        self.needs_redraw = true;
+    }
+
+    /// Reset le timer de démarrage
+    pub fn reset_start_time(&mut self) {
+        self.start_time = Instant::now();
+        self.needs_redraw = true;
+    }
+
+    /// Retourne les logs visibles pour l'affichage
+    pub fn visible_logs(&self) -> impl Iterator<Item = (usize, &LogLine)> {
+        let total = self.logs.len();
+        let start = total.saturating_sub(self.visible_height + self.scroll_offset);
+        let end = total.saturating_sub(self.scroll_offset);
+        
+        self.logs.iter().enumerate().skip(start).take(end - start)
+    }
+
+    /// Retourne la commande formatée
+    pub fn command_str(&self) -> String {
+        self.command.join(" ")
+    }
+}

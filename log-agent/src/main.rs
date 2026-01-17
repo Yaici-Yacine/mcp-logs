@@ -2,6 +2,8 @@ mod capture;
 mod cli;
 mod config;
 mod socket;
+mod supervisor;
+mod tui;
 mod types;
 
 use capture::ProcessCapture;
@@ -17,8 +19,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { project, verbose, cmd } => {
-            run_command(project, verbose, cmd).await?;
+        Commands::Run { project, verbose, watch, cmd } => {
+            run_command(project, verbose, watch, cmd).await?;
         }
         Commands::Test { message } => {
             test_connection(message).await?;
@@ -31,10 +33,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn run_command(project_override: Option<String>, verbose_override: bool, cmd: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_command(project_override: Option<String>, verbose_override: bool, watch: bool, cmd: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     // Charger la configuration
     let mut config = config::load_config().unwrap_or_else(|e| {
-        eprintln!("{}", format!("⚠ Failed to load config: {}", e).yellow());
+        eprintln!("{}", format!("Warning: Failed to load config: {}", e).yellow());
         eprintln!("  Using default configuration");
         Config::default()
     });
@@ -45,7 +47,7 @@ async fn run_command(project_override: Option<String>, verbose_override: bool, c
         if let Some(default_cmd) = &config.agent.default_command {
             default_cmd.clone()
         } else {
-            eprintln!("{}", "✗ No command provided and no default_command in config".red());
+            eprintln!("{}", "Error: No command provided and no default_command in config".red());
             eprintln!();
             eprintln!("Usage:");
             eprintln!("  1. Provide a command:");
@@ -72,20 +74,31 @@ async fn run_command(project_override: Option<String>, verbose_override: bool, c
         config.agent.verbose = true;
     }
     
+    // Override watch depuis CLI ou utiliser la config
+    let use_watch = watch || config.agent.watch;
+    
     let project = config.agent.default_project.clone();
     
+    // Mode TUI avec supervision (--watch ou config.agent.watch = true)
+    if use_watch {
+        return tui::run_tui(project, command, config)
+            .await
+            .map_err(|e| -> Box<dyn std::error::Error> { Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())) });
+    }
+    
+    // Mode classique (one-shot)
     // Afficher les informations
     if config::has_local_config() {
-        eprintln!("{}", "✓ Using local configuration".bright_green());
+        eprintln!("{}", "Using local configuration".bright_green());
         eprintln!("  Location: ./.mcp-log-agent.toml");
     } else if config::has_global_config() {
-        eprintln!("{}", "✓ Using global configuration".bright_cyan());
+        eprintln!("{}", "Using global configuration".bright_cyan());
         if let Some(path) = config::get_global_config_path() {
             eprintln!("  Location: {}", path.display());
         }
     }
     
-    eprintln!("{}", format!("📋 Project: {}", project).bright_cyan());
+    eprintln!("{}", format!("Project: {}", project).bright_cyan());
     eprintln!();
 
     // Créer un channel pour les logs

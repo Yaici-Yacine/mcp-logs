@@ -26,6 +26,8 @@ pub struct AgentConfig {
     pub default_command: Option<Vec<String>>,
     #[serde(default)]
     pub verbose: bool,
+    #[serde(default)]
+    pub watch: bool,
     #[serde(default = "default_connection_timeout")]
     pub connection_timeout: u64,
     #[serde(default = "default_retry_attempts")]
@@ -182,6 +184,31 @@ pub struct PerformanceConfig {
     pub buffer_size: usize,
     #[serde(default = "default_flush_interval")]
     pub flush_interval: u64,
+    #[serde(default)]
+    pub tui: TuiConfig,
+}
+
+/// Configuration de la TUI
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TuiConfig {
+    #[serde(default = "default_max_logs")]
+    pub max_logs: usize,
+    #[serde(default = "default_tick_rate")]
+    pub tick_rate_ms: u64,
+    #[serde(default = "default_frame_rate")]
+    pub frame_rate_ms: u64,
+}
+
+fn default_max_logs() -> usize {
+    5000
+}
+
+fn default_tick_rate() -> u64 {
+    250  // 250ms entre les ticks (countdown)
+}
+
+fn default_frame_rate() -> u64 {
+    100  // 100ms entre les frames (10 FPS pour réduire les lags)
 }
 
 fn default_buffer_size() -> usize {
@@ -279,6 +306,7 @@ impl Default for AgentConfig {
             default_project: "default".to_string(),
             default_command: None,
             verbose: false,
+            watch: false,
             connection_timeout: 5,
             retry_attempts: 3,
         }
@@ -365,6 +393,17 @@ impl Default for PerformanceConfig {
         Self {
             buffer_size: 1000,
             flush_interval: 100,
+            tui: TuiConfig::default(),
+        }
+    }
+}
+
+impl Default for TuiConfig {
+    fn default() -> Self {
+        Self {
+            max_logs: 5000,
+            tick_rate_ms: 250,
+            frame_rate_ms: 100,
         }
     }
 }
