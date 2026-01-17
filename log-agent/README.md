@@ -159,7 +159,64 @@ mcp-log-agent run [OPTIONS] -- <COMMAND> [ARGS...]
 - `--project, -p`: Project name for identification (overrides config)
 - `--verbose, -v`: Enable verbose output
 - `--watch, -w`: Enable interactive TUI (Terminal User Interface) mode
+- `--cmd, -C`: Use a predefined command from config
 - Command and arguments: The command to run (uses `default_command` from config if not provided)
+
+#### Predefined Commands
+
+Define multiple commands in your config for quick access:
+
+```toml
+[agent]
+# Simple syntax (uses default watch setting)
+[agent.commands]
+dev = ["npm", "run", "dev"]
+build = ["npm", "run", "build"]
+
+# Detailed syntax (specify watch mode per command)
+test = { command = ["npm", "test"], watch = true }
+serve = { command = ["python", "-m", "http.server"], watch = false }
+```
+
+**Usage:**
+
+```bash
+# Run predefined commands
+mcp-log-agent run --cmd dev      # Uses dev command
+mcp-log-agent run --cmd test     # Uses test command with watch mode enabled
+mcp-log-agent run -C build       # Short flag works too
+
+# List available commands when none found
+mcp-log-agent run --cmd unknown
+# Error: Predefined command 'unknown' not found in config
+# Available commands in config:
+#   dev = ["npm", "run", "dev"]
+#   test = ["npm", "test"] (watch: true)
+#   build = ["npm", "run", "build"]
+```
+
+**Watch Mode Priority:**
+
+When using predefined commands, the watch mode is determined by:
+1. CLI flag (`--watch` / `-w`) - highest priority
+2. Command-specific `watch` setting - if using detailed syntax
+3. Global `watch` setting in `[agent]` - default for simple syntax
+4. Default value (`false`)
+
+**Examples:**
+
+```bash
+# Command uses its own watch setting
+mcp-log-agent run --cmd test      # watch = true (from command config)
+
+# Override with CLI flag
+mcp-log-agent run --cmd test -w   # Always uses watch mode
+mcp-log-agent run --cmd dev       # Uses global watch setting
+
+# Mix predefined and inline commands
+mcp-log-agent run --cmd dev       # Uses config command
+mcp-log-agent run -- npm start    # Uses inline command
+```
 
 #### Watch Mode (TUI)
 
@@ -181,12 +238,25 @@ mcp-log-agent run  # Auto-launches in TUI mode
 - Real-time scrollable log viewer with color-coded log levels
 - Mouse support: scroll with wheel, click to select lines
 - Keyboard controls:
-  - `↑/↓` or `j/k` - Scroll up/down
-  - `Page Up/Down` - Fast scroll
-  - `Home/End` - Jump to top/bottom
-  - `r` - Restart the process (without quitting the agent)
-  - `c` - Clear all logs
-  - `q` - Quit
+  - **Navigation:**
+    - `↑/↓` or `j/k` - Scroll up/down
+    - `Page Up/Down` - Fast scroll
+    - `Home/End` - Jump to top/bottom
+  - **Process Control:**
+    - `r` - Restart the process (without quitting the agent)
+    - `q` - Quit
+  - **Log Management:**
+    - `c` - Clear all logs
+    - `p` / `Space` - Pause/Resume log capture
+    - `/` - Search logs (supports regex)
+    - `s` - Save logs to file
+    - `y` - Copy selected line to clipboard
+    - `?` - Show help overlay with all shortcuts
+- **Search & Filter:** Regex-based search with live highlighting (matching logs highlighted, others dimmed)
+- **Pause/Resume:** Freeze log capture to read, resume when ready (buffered logs are retained)
+- **Save to File:** Export current logs to a text file
+- **Copy to Clipboard:** Copy any selected log line
+- **Network Stats:** Real-time display of logs received/sent and rate per second
 - Auto-countdown: When process exits, shows 5-second countdown before auto-quit
   - Press `r` to restart immediately
   - Press `q` to quit immediately
@@ -318,6 +388,13 @@ This generates a fully commented configuration file with explanations for each p
 default_project = "my-awesome-app"
 default_command = ["npm", "run", "dev"]
 # Now just run: mcp-log-agent run
+
+# Or define multiple commands for quick access:
+[agent.commands]
+dev = ["npm", "run", "dev"]
+test = { command = ["npm", "test"], watch = true }
+build = ["npm", "run", "build"]
+# Now run: mcp-log-agent run --cmd dev
 ```
 
 ### Configuration Commands
@@ -428,6 +505,13 @@ watch = false                    # Enable TUI mode by default
 verbose = false
 connection_timeout = 5
 retry_attempts = 3
+
+# Predefined commands for quick execution
+[agent.commands]
+dev = ["npm", "run", "dev"]                          # Simple syntax
+test = { command = ["npm", "test"], watch = true }   # Detailed syntax
+build = ["npm", "run", "build"]
+serve = { command = ["python", "-m", "http.server"], watch = true }
 
 [output]
 colors = true                    # Enable/disable colors
@@ -571,7 +655,7 @@ Yacine Yaici - yaiciy01@gmail.com
 
 ## Changelog
 
-### 0.2.0 (2026-01-16)
+### 0.2.0 (2026-01-17)
 
 - **Interactive TUI (Terminal User Interface)**: NEW watch mode for interactive process monitoring
   - Enable with `--watch` / `-w` flag or `watch = true` in config
@@ -581,6 +665,31 @@ Yacine Yaici - yaiciy01@gmail.com
   - Process control: `r` to restart, `c` to clear logs, `q` to quit
   - Auto-countdown: 5-second countdown when process exits (configurable)
   - Performance optimized: Frame rate limiting prevents lag with high-frequency logs
+- **Search & Filter**: NEW regex-based log search
+  - Press `/` to enter search mode
+  - Live highlighting: matching logs highlighted, others dimmed
+  - Shows match count in real-time
+  - Supports full regex syntax
+- **Pause/Resume**: NEW log capture control
+  - Press `p` or `Space` to pause/resume
+  - Paused logs are buffered and shown when resumed
+  - Visual indicator shows LIVE/PAUSED status
+- **Save to File**: NEW export logs feature
+  - Press `s` to save current logs to file
+  - Custom filename with auto-suggestion
+  - Saves all visible logs with timestamps and levels
+- **Copy to Clipboard**: NEW clipboard integration
+  - Click to select any log line
+  - Press `y` to copy selected line
+  - Works across all platforms (X11, Wayland, macOS, Windows)
+- **Network Stats**: NEW real-time statistics
+  - Logs received/sent counters
+  - Logs per second rate
+  - Visual display in status bar
+- **Help Overlay**: NEW interactive help
+  - Press `?` to show full keyboard shortcuts
+  - Comprehensive guide with all features
+  - Press any key to close
 - **Process Supervision**: NEW supervisor module for process lifecycle management
   - Start/stop/restart processes without quitting agent
   - Clean task cleanup and state management
@@ -589,10 +698,15 @@ Yacine Yaici - yaiciy01@gmail.com
   - `max_logs` - Max logs kept in TUI memory (default: 5000)
   - `tick_rate_ms` - Countdown refresh rate (default: 250ms)
   - `frame_rate_ms` - Max 10 FPS, prevents lag (default: 100ms)
-- **Dependencies**: Added `ratatui` 0.29 and `crossterm` 0.29 for TUI functionality
+- **Modular UI Architecture**: Refactored UI code into reusable components
+  - `ShortcutList` and `StatusInfoList` builders for DRY code
+  - Separate modules for header, logs, status, help, and widgets
+  - Eliminated code duplication
+- **Dependencies**: Added `ratatui` 0.29, `crossterm` 0.29, `regex` 1.11, and `arboard` 3.4
 - **Bug Fixes**: 
   - Fixed countdown display showing "0s" before quitting (was skipping from 1s)
   - Added comprehensive documentation to supervisor module
+  - Fixed Event::Resize variant to include dimensions
 
 ### 0.1.1 (2026-01-06)
 

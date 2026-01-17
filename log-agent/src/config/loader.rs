@@ -219,6 +219,13 @@ default_project = "default"
 # Uncomment and modify to use:
 # default_command = ["npm", "start"]
 
+# watch: Enable TUI (Terminal User Interface) watch mode by default
+# Default: false
+# When true, all runs use interactive TUI mode unless overridden with CLI
+# Press '?' in TUI mode to see all available shortcuts
+# Env var: MCP_LOG_AGENT_WATCH
+watch = false
+
 # verbose: Enable verbose logging output from the agent itself
 # Default: false
 # Possible values: true, false
@@ -234,6 +241,29 @@ connection_timeout = 5
 # Default: 3
 # Env var: MCP_LOG_AGENT_RETRY_ATTEMPTS
 retry_attempts = 3
+
+# ============================================================================
+# [agent.commands] - Predefined commands for quick access
+# ============================================================================
+# Define multiple commands that you can run with: mcp-log-agent run --cmd <name>
+# This is useful for projects with multiple dev/build/test commands
+#
+# Usage examples:
+#   mcp-log-agent run --cmd dev         # Runs the "dev" command
+#   mcp-log-agent run --cmd build       # Runs the "build" command
+#   mcp-log-agent run -w --cmd test     # Runs "test" in TUI mode
+#
+# Note: If you don't use --cmd flag, it will use default_command (if set)
+#
+# Uncomment and customize examples below:
+
+[agent.commands]
+# dev = ["npm", "run", "dev"]
+# build = ["npm", "run", "build"]
+# test = ["npm", "test"]
+# start = ["npm", "start"]
+# serve = ["python", "-m", "http.server", "8000"]
+# watch = ["cargo", "watch", "-x", "run"]
 
 # ============================================================================
 # [output] - Output formatting and display settings
@@ -351,6 +381,26 @@ buffer_size = 1000
 # Default: 100
 # Lower values reduce latency but increase overhead
 flush_interval = 100
+
+# ============================================================================
+# [performance.tui] - TUI (Terminal User Interface) performance settings
+# ============================================================================
+[performance.tui]
+
+# max_logs: Maximum number of logs kept in TUI memory
+# Default: 5000
+# Older logs are automatically discarded when this limit is reached
+max_logs = 5000
+
+# tick_rate_ms: Tick rate for countdown timer in milliseconds
+# Default: 250 (4 updates per second)
+# Controls how often the countdown and stats update
+tick_rate_ms = 250
+
+# frame_rate_ms: Frame rate limit in milliseconds
+# Default: 100 (10 FPS)
+# Prevents lag with high-frequency log output
+frame_rate_ms = 100
 "#;
     
     // Créer le répertoire parent si nécessaire

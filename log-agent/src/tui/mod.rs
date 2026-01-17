@@ -2,7 +2,7 @@ mod app;
 mod event;
 mod ui;
 
-pub use app::{App, AppState};
+pub use app::{App, AppState, InputMode};
 pub use event::{Event, EventHandler};
 
 use crate::config::Config;
@@ -127,54 +127,109 @@ async fn run_app_loop(
                 match event {
                     Event::Key(key) => {
                         use crossterm::event::KeyCode;
-                        match key.code {
-                            KeyCode::Char('q') => {
-                                app.should_quit = true;
-                            }
-                            KeyCode::Char('r') => {
-                                app.add_system_log("Restarting...".to_string());
-                                app.set_state(AppState::Restarting);
-                                
-                                // Forcer le redraw immédiatement pour montrer "Restarting..."
-                                terminal.draw(|f| ui::draw(f, app))?;
-                                *last_frame = std::time::Instant::now();
-                                
-                                match supervisor.restart(tx_log.clone()).await {
-                                    Ok(pid) => {
-                                        app.set_pid(Some(pid));
-                                        app.set_state(AppState::Running);
-                                        app.reset_start_time();
-                                        app.add_system_log(format!("Process restarted (PID: {})", pid));
+                        
+                        // Gestion des inputs selon le mode
+                        match app.input_mode {
+                            InputMode::Normal => {
+                                match key.code {
+                                    KeyCode::Char('q') => {
+                                        app.should_quit = true;
                                     }
-                                    Err(e) => {
-                                        app.add_system_log(format!("Restart failed: {}", e));
-                                        app.set_state(AppState::WaitingCountdown(5));
+                                    KeyCode::Char('r') => {
+                                        app.add_system_log("Restarting...".to_string());
+                                        app.set_state(AppState::Restarting);
+                                        
+                                        // Forcer le redraw immédiatement pour montrer "Restarting..."
+                                        terminal.draw(|f| ui::draw(f, app))?;
+                                        *last_frame = std::time::Instant::now();
+                                        
+                                        match supervisor.restart(tx_log.clone()).await {
+                                            Ok(pid) => {
+                                                app.set_pid(Some(pid));
+                                                app.set_state(AppState::Running);
+                                                app.reset_start_time();
+                                                app.add_system_log(format!("Process restarted (PID: {})", pid));
+                                            }
+                                            Err(e) => {
+                                                app.add_system_log(format!("Restart failed: {}", e));
+                                                app.set_state(AppState::WaitingCountdown(5));
+                                            }
+                                        }
                                     }
+                                    KeyCode::Char('c') => {
+                                        // Clear logs
+                                        app.clear_logs();
+                                    }
+                                    KeyCode::Char('/') => {
+                                        // Enter search mode
+                                        app.enter_search_mode();
+                                    }
+                                    KeyCode::Char('s') => {
+                                        // Save logs to file
+                                        app.enter_save_mode();
+                                    }
+                                    KeyCode::Char('p') | KeyCode::Char(' ') => {
+                                        // Toggle pause/resume
+                                        app.toggle_pause();
+                                    }
+                                    KeyCode::Char('y') => {
+                                        // Copy selected line
+                                        if let Err(e) = app.copy_selected_line() {
+                                            app.add_system_log(format!("Copy failed: {}", e));
+                                        }
+                                    }
+                                    KeyCode::Char('?') => {
+                                        // Toggle help
+                                        app.toggle_help();
+                                    }
+                                    KeyCode::Up | KeyCode::Char('k') => {
+                                        app.scroll_up(1);
+                                    }
+                                    KeyCode::Down | KeyCode::Char('j') => {
+                                        app.scroll_down(1);
+                                    }
+                                    KeyCode::PageUp => {
+                                        app.scroll_up(10);
+                                    }
+                                    KeyCode::PageDown => {
+                                        app.scroll_down(10);
+                                    }
+                                    KeyCode::Home => {
+                                        app.scroll_to_top();
+                                    }
+                                    KeyCode::End => {
+                                        app.scroll_to_bottom();
+                                    }
+                                    _ => {}
                                 }
                             }
-                            KeyCode::Char('c') => {
-                                // Clear logs
-                                app.clear_logs();
+                            InputMode::Search | InputMode::SavePrompt => {
+                                match key.code {
+                                    KeyCode::Enter => {
+                                        if app.input_mode == InputMode::Search {
+                                            app.confirm_search();
+                                        } else {
+                                            if let Err(e) = app.save_logs() {
+                                                app.add_system_log(format!("Save failed: {}", e));
+                                            }
+                                        }
+                                    }
+                                    KeyCode::Esc => {
+                                        app.exit_input_mode();
+                                    }
+                                    KeyCode::Backspace => {
+                                        app.input_backspace();
+                                    }
+                                    KeyCode::Char(c) => {
+                                        app.input_char(c);
+                                    }
+                                    _ => {}
+                                }
                             }
-                            KeyCode::Up => {
-                                app.scroll_up(1);
+                            InputMode::Help => {
+                                // Any key closes help
+                                app.toggle_help();
                             }
-                            KeyCode::Down => {
-                                app.scroll_down(1);
-                            }
-                            KeyCode::PageUp => {
-                                app.scroll_up(10);
-                            }
-                            KeyCode::PageDown => {
-                                app.scroll_down(10);
-                            }
-                            KeyCode::Home => {
-                                app.scroll_to_top();
-                            }
-                            KeyCode::End => {
-                                app.scroll_to_bottom();
-                            }
-                            _ => {}
                         }
                     }
                     Event::Mouse(mouse) => {
@@ -237,7 +292,9 @@ async fn run_app_loop(
                 app.add_log(log.clone());
                 
                 // Envoyer au socket
-                let _ = tx_socket.send(log).await;
+                if tx_socket.send(log).await.is_ok() {
+                    app.increment_sent();
+                }
             }
         }
 

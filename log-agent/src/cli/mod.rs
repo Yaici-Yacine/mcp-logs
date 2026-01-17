@@ -25,10 +25,15 @@ pub enum Commands {
         #[arg(short, long)]
         watch: bool,
 
+        /// Use a predefined command from config (e.g., --cmd dev, --cmd test)
+        /// Looks up the command in [agent.commands] section of config
+        #[arg(short = 'C', long)]
+        cmd: Option<String>,
+
         /// Command to run (e.g., "bun dev", "cargo run", "npm start")
-        /// If not provided, uses default_command from config
+        /// If not provided, uses --cmd or default_command from config
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        cmd: Vec<String>,
+        command: Vec<String>,
     },
 
     /// Test socket connection to MCP server

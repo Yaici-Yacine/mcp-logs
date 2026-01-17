@@ -1,4 +1,19 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+/// Configuration d'une commande prédéfinie
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CommandConfig {
+    /// Simple: juste la commande
+    Simple(Vec<String>),
+    /// Détaillée: commande + options
+    Detailed {
+        command: Vec<String>,
+        #[serde(default)]
+        watch: bool,
+    },
+}
 
 /// Configuration principale
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,6 +39,8 @@ pub struct AgentConfig {
     pub default_project: String,
     #[serde(default)]
     pub default_command: Option<Vec<String>>,
+    #[serde(default)]
+    pub commands: HashMap<String, CommandConfig>,
     #[serde(default)]
     pub verbose: bool,
     #[serde(default)]
@@ -305,6 +322,7 @@ impl Default for AgentConfig {
             socket_path: "/tmp/log-agent.sock".to_string(),
             default_project: "default".to_string(),
             default_command: None,
+            commands: HashMap::new(),
             verbose: false,
             watch: false,
             connection_timeout: 5,

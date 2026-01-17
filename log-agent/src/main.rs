@@ -19,8 +19,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { project, verbose, watch, cmd } => {
-            run_command(project, verbose, watch, cmd).await?;
+        Commands::Run { project, verbose, watch, cmd, command } => {
+            run_command(project, verbose, watch, cmd, command).await?;
         }
         Commands::Test { message } => {
             test_connection(message).await?;
@@ -33,7 +33,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn run_command(project_override: Option<String>, verbose_override: bool, watch: bool, cmd: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_command(
+    project_override: Option<String>, 
+    verbose_override: bool, 
+    watch: bool, 
+    cmd_name: Option<String>,
+    command_args: Vec<String>
+) -> Result<(), Box<dyn std::error::Error>> {
     // Charger la configuration
     let mut config = config::load_config().unwrap_or_else(|e| {
         eprintln!("{}", format!("Warning: Failed to load config: {}", e).yellow());
@@ -41,29 +47,70 @@ async fn run_command(project_override: Option<String>, verbose_override: bool, w
         Config::default()
     });
     
-    // Déterminer la commande à exécuter
-    let command = if cmd.is_empty() {
-        // Utiliser default_command de la config
-        if let Some(default_cmd) = &config.agent.default_command {
-            default_cmd.clone()
+    // Déterminer la commande à exécuter et le mode watch
+    // Priorité: CLI args > --cmd > default_command
+    let (command, cmd_watch_override) = if !command_args.is_empty() {
+        // 1. Commande fournie en CLI arguments (pas de watch override spécifique)
+        (command_args, None)
+    } else if let Some(name) = cmd_name {
+        // 2. Commande prédéfinie via --cmd
+        if let Some(cmd_config) = config.agent.commands.get(&name) {
+            // Extraire la commande et le watch override depuis CommandConfig
+            match cmd_config {
+                config::CommandConfig::Simple(cmd) => (cmd.clone(), None),
+                config::CommandConfig::Detailed { command: cmd, watch: cmd_watch } => {
+                    (cmd.clone(), Some(*cmd_watch))
+                }
+            }
         } else {
-            eprintln!("{}", "Error: No command provided and no default_command in config".red());
+            eprintln!("{}", format!("Error: Predefined command '{}' not found in config", name).red());
             eprintln!();
-            eprintln!("Usage:");
-            eprintln!("  1. Provide a command:");
-            eprintln!("     mcp-log-agent run -- npm start");
-            eprintln!();
-            eprintln!("  2. Or set default_command in config:");
-            eprintln!("     mcp-log-agent config init --local");
-            eprintln!("     # Then edit .mcp-log-agent.toml:");
-            eprintln!("     # default_command = [\"npm\", \"start\"]");
-            eprintln!();
-            eprintln!("  3. Then simply run:");
-            eprintln!("     mcp-log-agent run");
-            return Err("No command specified".into());
+            eprintln!("Available commands in config:");
+            if config.agent.commands.is_empty() {
+                eprintln!("  (none defined)");
+                eprintln!();
+                eprintln!("To define commands, edit your config file:");
+                eprintln!("  mcp-log-agent config init --local");
+                eprintln!("  # Then add commands in [agent.commands] section:");
+                eprintln!("  # [agent.commands]");
+                eprintln!("  # dev = [\"npm\", \"run\", \"dev\"]");
+                eprintln!("  # test = {{ command = [\"npm\", \"test\"], watch = true }}");
+            } else {
+                for (name, cmd_config) in &config.agent.commands {
+                    match cmd_config {
+                        config::CommandConfig::Simple(cmd) => {
+                            eprintln!("  {} = {:?}", name.bright_cyan(), cmd);
+                        }
+                        config::CommandConfig::Detailed { command: cmd, watch: cmd_watch } => {
+                            eprintln!("  {} = {:?} (watch: {})", name.bright_cyan(), cmd, cmd_watch);
+                        }
+                    }
+                }
+            }
+            return Err(format!("Predefined command '{}' not found", name).into());
         }
+    } else if let Some(default_cmd) = &config.agent.default_command {
+        // 3. Commande par défaut de la config (pas de watch override spécifique)
+        (default_cmd.clone(), None)
     } else {
-        cmd
+        // Aucune commande spécifiée
+        eprintln!("{}", "Error: No command provided".red());
+        eprintln!();
+        eprintln!("Usage:");
+        eprintln!("  1. Provide a command:");
+        eprintln!("     mcp-log-agent run -- npm start");
+        eprintln!();
+        eprintln!("  2. Use a predefined command:");
+        eprintln!("     mcp-log-agent run --cmd dev");
+        eprintln!();
+        eprintln!("  3. Or set default_command in config:");
+        eprintln!("     mcp-log-agent config init --local");
+        eprintln!("     # Then edit .mcp-log-agent.toml:");
+        eprintln!("     # default_command = [\"npm\", \"start\"]");
+        eprintln!();
+        eprintln!("  4. Then simply run:");
+        eprintln!("     mcp-log-agent run");
+        return Err("No command specified".into());
     };
     
     // Appliquer les overrides CLI
@@ -74,8 +121,8 @@ async fn run_command(project_override: Option<String>, verbose_override: bool, w
         config.agent.verbose = true;
     }
     
-    // Override watch depuis CLI ou utiliser la config
-    let use_watch = watch || config.agent.watch;
+    // Déterminer le mode watch (priorité: CLI flag > commande spécifique > config globale)
+    let use_watch = watch || cmd_watch_override.unwrap_or(config.agent.watch);
     
     let project = config.agent.default_project.clone();
     
