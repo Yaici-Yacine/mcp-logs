@@ -18,7 +18,10 @@ curl -fsSL https://bun.sh/install | bash
 
 - Receive logs from CLI agent via Unix socket
 - In-memory log storage (10,000 logs max, FIFO)
-- 6 MCP tools for querying and analyzing logs
+- **8 MCP tools** for querying and analyzing logs
+- **Advanced Analytics** - Comprehensive log insights with distributions, timelines, and error rates
+- **Temporal Filtering** - Filter logs by time range with flexible formats (ISO 8601, Unix timestamps, relative times)
+- **Regex Search** - Powerful pattern matching for complex log queries
 - Real-time log streaming
 - Multi-project support
 - Automatic log level inference
@@ -199,32 +202,54 @@ Show me the last 100 logs
 
 ### 2. get_logs
 
-Advanced filtering with multiple criteria.
+Advanced filtering with multiple criteria, including time range filtering.
 
 **Parameters:**
 - `project` (optional): Filter by project name
 - `level` (optional): `info`, `warn`, `error`, `debug`
 - `source` (optional): `stdout`, `stderr`
 - `search` (optional): Text search in messages
+- `startTime` (optional): Start of time range (ISO 8601, Unix timestamp, or relative like "last 1h")
+- `endTime` (optional): End of time range
 - `limit` (optional): Max results (default: 100)
 
-**Example:**
+**Time Format Examples:**
+```
+# ISO 8601
+startTime: "2026-01-18T10:00:00Z"
+
+# Unix timestamp
+startTime: 1737201600000
+
+# Relative times
+startTime: "last 1h"   - Last hour
+startTime: "last 30m"  - Last 30 minutes
+startTime: "last 2d"   - Last 2 days
+startTime: "last 1w"   - Last week
+```
+
+**Examples:**
 ```
 Show me error logs from project "my-app"
+Get logs from the last hour
+Show me logs between 10:00 and 11:00
 ```
 
 ### 3. search_logs
 
-Search logs by text content.
+Search logs by text content with optional regex support.
 
 **Parameters:**
-- `query` (required): Search text
+- `query` (required): Search text or regex pattern
+- `regex` (optional): Enable regex matching (default: false)
 - `project` (optional): Filter by project
 - `limit` (optional): Max results (default: 50)
 
-**Example:**
+**Examples:**
 ```
 Search for "database connection" in the logs
+Find logs matching pattern "error.*timeout"
+Search for regex "user_\d+" in project "api"
 ```
 
 ### 4. get_errors
@@ -249,7 +274,50 @@ Get global statistics about captured logs.
 Show log statistics
 ```
 
-### 6. clear_logs
+### 6. get_analytics
+
+**NEW in v1.0.0** - Get advanced analytics and insights on your logs.
+
+**Parameters:**
+- `timeRange` (optional): Predefined range - "1h", "6h", "24h", "7d", "30d"
+- `project` (optional): Filter by specific project
+- `groupBy` (optional): Group data by - "minute", "hour", "day", "project", "level"
+- `startTime` (optional): Custom start time (same formats as get_logs)
+- `endTime` (optional): Custom end time
+
+**Returns:**
+- **Summary**: Total logs, time period covered, active projects
+- **Distribution by Level**: Count of errors, warnings, info, debug logs
+- **Distribution by Project**: Logs per project
+- **Timeline**: Logs grouped by time intervals (minute/hour/day)
+- **Top Messages**: Most frequent log messages (top 10)
+- **Error Rate**: Percentage of error logs vs total
+
+**Examples:**
+```
+Analyze logs from the last hour
+Get analytics for project "frontend" over last 24 hours
+Show me log distribution by level for the last week
+What are the most common error messages?
+```
+
+**Use Cases:**
+- Identify error spikes in timelines
+- Compare log volumes across projects
+- Find most frequent error messages
+- Calculate error rates for SLA monitoring
+- Analyze log patterns over time
+
+### 7. list_projects
+
+List all connected log agents and projects.
+
+**Example:**
+```
+Which projects are connected?
+```
+
+### 8. clear_logs
 
 Clear all logs from memory.
 
@@ -502,6 +570,49 @@ Yacine Yaici - yaiciy01@gmail.com
 - [npm Package](https://www.npmjs.com/package/mcp-logs)
 
 ## Changelog
+
+### 1.0.0 (2026-01-18)
+
+**Major Release - Advanced Features**
+
+- **NEW: get_analytics Tool** - Comprehensive log analysis and insights
+  - Summary statistics (total logs, time range, active projects)
+  - Distribution by log level (error, warn, info, debug counts)
+  - Distribution by project (logs per project)
+  - Timeline analysis (grouped by minute/hour/day)
+  - Top 10 most frequent messages
+  - Error rate calculation (percentage of errors vs total logs)
+  - Flexible time ranges: "1h", "6h", "24h", "7d", "30d"
+  - Custom time ranges with startTime/endTime
+  - Group by options: minute, hour, day, project, level
+- **Temporal Filtering** - Filter logs by time range in get_logs tool
+  - Multiple time format support:
+    - ISO 8601: `"2026-01-18T10:00:00Z"`
+    - Unix timestamps: `1737201600000`
+    - Relative times: `"last 1h"`, `"last 30m"`, `"last 2d"`, `"last 1w"`
+  - `startTime` and `endTime` parameters for custom ranges
+  - Utility functions for time parsing and validation
+- **Regex Search** - Advanced pattern matching in search_logs tool
+  - New `regex` boolean parameter (default: false)
+  - Full regex syntax support for complex queries
+  - Backwards compatible (simple text search by default)
+- **Time Utilities Module** - New src/utils/time.ts
+  - `parseTimeInput()` - Parse ISO 8601, timestamps, relative times
+  - `isInTimeRange()` - Check if timestamp in range
+  - `formatDuration()` - Human-readable duration formatting
+  - `groupByTimeInterval()` - Group logs by time buckets
+- **Enhanced Types** - Extended TypeScript interfaces
+  - `AnalyticsOptions` - Options for analytics queries
+  - `Analytics` - Complete analytics data structure
+  - `LogFilter` - Added startTime/endTime/regex support
+- **Documentation** - Updated README with detailed examples
+  - Complete get_analytics documentation with use cases
+  - Time format examples for temporal filtering
+  - Regex search patterns and examples
+  - Tool count updated: 6 → 8 tools
+- **Version Bump**: 0.1.2 → 1.0.0
+- **Testing**: Added test-features.ts for validating new functionality
+- **Stability**: All TypeScript type checks pass, production-ready
 
 ### 0.1.2 (2026-01-07)
 

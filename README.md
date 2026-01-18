@@ -7,7 +7,10 @@ Système complet de capture et analyse de logs en temps réel pour projets de d�
 - 🎨 **Logs colorisés** : Erreurs en rouge, warnings en jaune, debug en bleu
 - 🔕 **Mode silencieux** : Logs verbeux désactivés par défaut
 - 🚀 **Multi-agents** : Lancez plusieurs agents simultanément pour monitorer plusieurs projets
-- 📊 **Outils MCP** : 7 outils pour interroger et analyser vos logs
+- 📊 **Outils MCP** : 8 outils pour interroger et analyser vos logs
+- 📈 **Analytics avancées** : Distribution, timeline, messages fréquents, taux d'erreurs
+- ⏰ **Filtrage temporel** : Filtrez par plage de temps (ISO 8601, timestamps, temps relatifs)
+- 🔍 **Recherche regex** : Patterns avancés pour requêtes complexes
 - 🔌 **Unix Socket** : Communication rapide et locale
 
 ---
@@ -342,10 +345,11 @@ get_stats                                  # Statistiques globales
 | Outil | Description | Paramètres |
 |-------|-------------|------------|
 | `get_recent_logs` | Récupère les derniers logs | `count` (optionnel, max 500) |
-| `get_logs` | Filtrage avancé des logs | `project`, `level`, `source`, `search`, `limit` |
-| `search_logs` | Recherche textuelle | `query` (requis), `project`, `limit` |
+| `get_logs` | Filtrage avancé avec plages temporelles | `project`, `level`, `source`, `search`, `startTime`, `endTime`, `limit` |
+| `search_logs` | Recherche textuelle ou regex | `query` (requis), `regex`, `project`, `limit` |
 | `get_errors` | Logs de niveau erreur uniquement | `project`, `limit` |
 | `get_stats` | Statistiques globales | - |
+| `get_analytics` | **NOUVEAU** - Analytics avancées | `timeRange`, `project`, `groupBy`, `startTime`, `endTime` |
 | `list_projects` | Liste des agents connectés | - |
 | `clear_logs` | Vide la mémoire | - |
 
@@ -362,6 +366,24 @@ get_stats                                  # Statistiques globales
   "project": "frontend",
   "level": "error",
   "limit": 50
+}
+
+// Filtrer par plage temporelle
+{
+  "startTime": "last 1h",
+  "level": "error"
+}
+
+// Recherche avec regex
+{
+  "query": "error.*timeout",
+  "regex": true
+}
+
+// Analytics avancées
+{
+  "timeRange": "24h",
+  "groupBy": "hour"
 }
 
 // Rechercher dans tous les projets

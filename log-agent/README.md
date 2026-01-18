@@ -708,17 +708,45 @@ This CLI works in tandem with the MCP server to provide real-time log analysis c
 
 ### Available MCP Tools
 
-Once configured, your MCP client will have access to 7 tools:
+Once configured, your MCP client will have access to 8 tools:
 
 | Tool | Description |
 |------|-------------|
 | `get_recent_logs` | Get the most recent logs |
-| `get_logs` | Advanced filtering (project, level, source, text search) |
-| `search_logs` | Text search across all logs |
+| `get_logs` | Advanced filtering (project, level, source, text search, time range) |
+| `search_logs` | Text search or regex patterns across all logs |
 | `get_errors` | Get only error-level logs |
 | `get_stats` | Statistics about captured logs |
+| `get_analytics` | **NEW in v1.0.0** - Advanced analytics with distributions, timelines, top messages, error rates |
 | `list_projects` | List all connected log agents |
 | `clear_logs` | Clear all logs from memory |
+
+### New in mcp-logs v1.0.0
+
+The MCP server now includes powerful analytics and filtering capabilities:
+
+**Advanced Analytics** (`get_analytics`):
+- Summary statistics (total logs, time range, active projects)
+- Distribution by log level and project
+- Timeline analysis (grouped by minute/hour/day)
+- Top 10 most frequent messages
+- Error rate calculation
+
+**Temporal Filtering** (`get_logs`):
+- Filter logs by time range with `startTime` and `endTime`
+- Supports ISO 8601, Unix timestamps, and relative times ("last 1h", "last 30m", "last 2d")
+
+**Regex Search** (`search_logs`):
+- Use regex patterns for complex log queries
+- Enable with `regex: true` parameter
+
+**Example queries in your MCP client:**
+```
+Show me analytics for the last hour
+Get error logs from the last 30 minutes
+Search for logs matching pattern "error.*timeout" using regex
+What are the most common error messages in project "api"?
+```
 
 See the [mcp-logs documentation](https://github.com/Yaici-Yacine/mcp-logs) for detailed MCP server setup and configuration.
 

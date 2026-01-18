@@ -1,6 +1,6 @@
 {
   "name": "mcp-logs",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "Real-time log capture MCP server for development projects",
   "type": "module",
   "bin": {
@@ -12,6 +12,7 @@
     "dev": "bun run index.ts",
     "start": "bun run index.ts",
     "build": "bun build index.ts --target=node --outdir=dist --minify --sourcemap",
+    "test": "bun run test-features.ts",
     "prepublishOnly": "bun run build"
   },
   "keywords": [
@@ -20,6 +21,7 @@
     "development",
     "realtime",
     "monitoring",
+    "analytics",
     "model-context-protocol"
   ],
   "author": {

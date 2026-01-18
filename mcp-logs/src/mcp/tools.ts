@@ -20,7 +20,7 @@ export const TOOLS: Tool[] = [
   {
     name: "get_logs",
     description:
-      "Get logs with advanced filtering options. Search by project, level, source, time range, or text content.",
+      "Get logs with advanced filtering options. Search by project, level, source, time range, or text content. Supports relative time formats like 'last 1h', 'last 30m', 'last 2d'.",
     inputSchema: {
       type: "object",
       properties: {
@@ -42,6 +42,16 @@ export const TOOLS: Tool[] = [
           type: "string",
           description: "Search for text in log messages",
         },
+        startTime: {
+          type: ["string", "number"],
+          description:
+            "Start time filter. Formats: ISO 8601 ('2026-01-18T10:00:00Z'), timestamp (1737201600000), or relative ('last 1h', 'last 30m', 'last 2d')",
+        },
+        endTime: {
+          type: ["string", "number"],
+          description:
+            "End time filter. Same formats as startTime",
+        },
         limit: {
           type: "number",
           description: "Maximum number of logs to return (default: 100)",
@@ -60,15 +70,57 @@ export const TOOLS: Tool[] = [
     },
   },
   {
+    name: "get_analytics",
+    description:
+      "Get advanced analytics and aggregations on logs. Provides insights like error rates, trends over time, top messages, and more. Perfect for understanding patterns and detecting issues.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project: {
+          type: "string",
+          description: "Optional: filter analytics by project name",
+        },
+        timeRange: {
+          type: "string",
+          enum: ["1h", "6h", "24h", "7d"],
+          description:
+            "Time range for analysis (default: all logs). Examples: '1h' (last hour), '24h' (last day), '7d' (last week)",
+        },
+        groupBy: {
+          type: "string",
+          enum: ["minute", "hour", "project", "level"],
+          description:
+            "Group results by time interval or dimension. 'minute' or 'hour' creates a timeline",
+        },
+        startTime: {
+          type: ["string", "number"],
+          description:
+            "Custom start time (alternative to timeRange). Formats: ISO 8601, timestamp, or relative ('last 2h')",
+        },
+        endTime: {
+          type: ["string", "number"],
+          description: "Custom end time. Same formats as startTime",
+        },
+      },
+    },
+  },
+  {
     name: "search_logs",
     description:
-      "Search logs by text content. Returns matching logs with context.",
+      "Search logs by text content. Returns matching logs with context. Supports both simple text search and regex patterns.",
     inputSchema: {
       type: "object",
       properties: {
         query: {
           type: "string",
-          description: "Search query (case-insensitive)",
+          description:
+            "Search query (case-insensitive by default). Can be a regex pattern if regex=true",
+        },
+        regex: {
+          type: "boolean",
+          description:
+            "Enable regex pattern matching. Example: 'error:\\s+\\d+' to find 'error: 404'",
+          default: false,
         },
         project: {
           type: "string",

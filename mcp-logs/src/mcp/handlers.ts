@@ -1,6 +1,6 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { LogStore } from "../store/index.js";
-import type { LogFilter, LogLevel, LogSource } from "../types/index.js";
+import type { LogFilter, LogLevel, LogSource, AnalyticsOptions } from "../types/index.js";
 import type { SocketServer } from "../server/index.js";
 
 interface ToolArguments {
@@ -19,6 +19,7 @@ export class ToolHandlers {
         get_recent_logs: () => this.getRecentLogs(args),
         get_logs: () => this.getLogs(args),
         get_stats: () => this.getStats(),
+        get_analytics: () => this.getAnalytics(args),
         search_logs: () => this.searchLogs(args),
         get_errors: () => this.getErrors(args),
         clear_logs: () => this.clearLogs(),
@@ -89,6 +90,14 @@ export class ToolHandlers {
         : undefined,
       search:
         typeof args?.search === "string" ? args.search : undefined,
+      startTime:
+        typeof args?.startTime === "string" || typeof args?.startTime === "number"
+          ? args.startTime
+          : undefined,
+      endTime:
+        typeof args?.endTime === "string" || typeof args?.endTime === "number"
+          ? args.endTime
+          : undefined,
       limit: Math.min(
         typeof args?.limit === "number" ? args.limit : 100,
         1000
@@ -128,6 +137,39 @@ export class ToolHandlers {
     };
   }
 
+  private getAnalytics(args?: ToolArguments): CallToolResult {
+    const options: AnalyticsOptions = {
+      project: typeof args?.project === "string" ? args.project : undefined,
+      timeRange: typeof args?.timeRange === "string" ? args.timeRange : undefined,
+      groupBy:
+        args?.groupBy === "minute" ||
+        args?.groupBy === "hour" ||
+        args?.groupBy === "project" ||
+        args?.groupBy === "level"
+          ? args.groupBy
+          : undefined,
+      startTime:
+        typeof args?.startTime === "string" || typeof args?.startTime === "number"
+          ? args.startTime
+          : undefined,
+      endTime:
+        typeof args?.endTime === "string" || typeof args?.endTime === "number"
+          ? args.endTime
+          : undefined,
+    };
+
+    const analytics = this.store.getAnalytics(options);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(analytics, null, 2),
+        },
+      ],
+    };
+  }
+
   private searchLogs(args?: ToolArguments): CallToolResult {
     const query = args?.query;
 
@@ -141,8 +183,29 @@ export class ToolHandlers {
       typeof args?.limit === "number" ? args.limit : 50,
       500
     );
+    const useRegex = args?.regex === true;
 
-    const logs = this.store.getAll({ search: query, project, limit });
+    let logs = this.store.getAll({ project, limit: undefined });
+
+    // Filtrer avec regex ou recherche simple
+    if (useRegex) {
+      try {
+        const regex = new RegExp(query, "i"); // Case insensitive
+        logs = logs.filter((log) => regex.test(log.data.message));
+      } catch (error) {
+        throw new Error(
+          `Invalid regex pattern: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    } else {
+      const queryLower = query.toLowerCase();
+      logs = logs.filter((log) =>
+        log.data.message.toLowerCase().includes(queryLower)
+      );
+    }
+
+    // Appliquer la limite après le filtrage
+    logs = logs.slice(-limit);
 
     return {
       content: [
@@ -151,6 +214,7 @@ export class ToolHandlers {
           text: JSON.stringify(
             {
               query,
+              regex: useRegex,
               project,
               count: logs.length,
               logs: logs.map((log) => log.data),
@@ -220,7 +284,7 @@ export class ToolHandlers {
             {
               connectedAgents: connectedProjects,
               projectsWithLogs: stats.projects,
-              totalLogs: stats.total,
+              totalLogs: stats.totalLogs,
             },
             null,
             2
