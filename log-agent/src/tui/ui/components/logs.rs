@@ -10,6 +10,10 @@ use ratatui::{
 
 /// Dessine la zone des logs avec scrollbar et filtrage
 pub fn draw_logs_panel(frame: &mut Frame, app: &mut App, area: Rect) {
+    // Extract colors from config
+    let border_color = app.config.performance.tui.colors.border.to_ratatui_color();
+    let header_fg = app.config.performance.tui.colors.header_fg.to_ratatui_color();
+
     // Mettre à jour la hauteur visible
     app.visible_height = (area.height as usize).saturating_sub(2); // -2 pour les bordures
 
@@ -22,8 +26,8 @@ pub fn draw_logs_panel(frame: &mut Frame, app: &mut App, area: Rect) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray))
-        .title(Span::styled(title, Style::default().fg(Color::White)));
+        .border_style(Style::default().fg(border_color))
+        .title(Span::styled(title, Style::default().fg(header_fg)));
 
     let inner_area = block.inner(area);
     frame.render_widget(block, area);
@@ -34,7 +38,7 @@ pub fn draw_logs_panel(frame: &mut Frame, app: &mut App, area: Rect) {
         .iter()
         .map(|(idx, log, matches)| {
             let is_selected = app.selected_line == Some(*idx);
-            log_to_list_item(log, is_selected, *matches)
+            log_to_list_item(log, is_selected, *matches, app)
         })
         .collect();
 
@@ -65,16 +69,38 @@ pub fn draw_logs_panel(frame: &mut Frame, app: &mut App, area: Rect) {
 }
 
 /// Convertit un log en ListItem avec couleurs et surbrillance de recherche
-fn log_to_list_item(log: &LogLine, is_selected: bool, matches_filter: bool) -> ListItem<'static> {
+fn log_to_list_item(log: &LogLine, is_selected: bool, matches_filter: bool, app: &App) -> ListItem<'static> {
+    // Extract colors from config
+    let selected_bg = app.config.performance.tui.colors.selected_bg.to_ratatui_color();
+    let search_dimmed = app.config.performance.tui.colors.search_dimmed.to_ratatui_color();
+    
+    // Get log level colors from config (with fallbacks)
+    let error_color = app.config.colors.error.fg
+        .as_ref()
+        .map(|c| c.to_ratatui_color())
+        .unwrap_or(Color::Red);
+    let warn_color = app.config.colors.warn.fg
+        .as_ref()
+        .map(|c| c.to_ratatui_color())
+        .unwrap_or(Color::Yellow);
+    let info_color = app.config.colors.info.fg
+        .as_ref()
+        .map(|c| c.to_ratatui_color())
+        .unwrap_or(Color::Green);
+    let debug_color = app.config.colors.debug.fg
+        .as_ref()
+        .map(|c| c.to_ratatui_color())
+        .unwrap_or(Color::Blue);
+
     let (level_str, level_color) = match log.level {
-        LogLevel::Error => ("ERR", Color::Red),
-        LogLevel::Warn => ("WRN", Color::Yellow),
-        LogLevel::Debug => ("DBG", Color::Blue),
-        LogLevel::Info => ("INF", Color::Green),
+        LogLevel::Error => ("ERR", error_color),
+        LogLevel::Warn => ("WRN", warn_color),
+        LogLevel::Debug => ("DBG", debug_color),
+        LogLevel::Info => ("INF", info_color),
     };
 
     let base_style = if is_selected {
-        Style::default().bg(Color::DarkGray)
+        Style::default().bg(selected_bg)
     } else {
         Style::default()
     };
@@ -83,28 +109,29 @@ fn log_to_list_item(log: &LogLine, is_selected: bool, matches_filter: bool) -> L
     let dimmed = !matches_filter;
 
     let line = if log.is_system {
-        // Message système
+        // Message système - use a magenta/purple color
+        let system_color = Color::Magenta;
         Line::from(vec![
             Span::styled(
                 format!("{} ", log.timestamp),
-                base_style.fg(Color::DarkGray),
+                base_style.fg(search_dimmed),
             ),
             Span::styled(
                 "SYS ",
                 base_style
-                    .fg(Color::Magenta)
+                    .fg(system_color)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::styled(log.message.clone(), base_style.fg(Color::Magenta)),
+            Span::styled(log.message.clone(), base_style.fg(system_color)),
         ])
     } else {
         // Log normal
         let msg_color = if dimmed {
-            Color::DarkGray
+            search_dimmed
         } else {
             match log.level {
-                LogLevel::Error => Color::Red,
-                LogLevel::Warn => Color::Yellow,
+                LogLevel::Error => error_color,
+                LogLevel::Warn => warn_color,
                 _ => Color::White,
             }
         };
@@ -112,16 +139,12 @@ fn log_to_list_item(log: &LogLine, is_selected: bool, matches_filter: bool) -> L
         Line::from(vec![
             Span::styled(
                 format!("{} ", log.timestamp),
-                base_style.fg(if dimmed {
-                    Color::DarkGray
-                } else {
-                    Color::DarkGray
-                }),
+                base_style.fg(search_dimmed),
             ),
             Span::styled(
                 format!("{} ", level_str),
                 base_style
-                    .fg(if dimmed { Color::DarkGray } else { level_color })
+                    .fg(if dimmed { search_dimmed } else { level_color })
                     .add_modifier(if dimmed {
                         Modifier::empty()
                     } else {

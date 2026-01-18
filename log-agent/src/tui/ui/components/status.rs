@@ -2,7 +2,7 @@ use crate::tui::app::{App, AppState, InputMode};
 use super::widgets::{ShortcutList, StatusInfoList};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
     Frame,
@@ -20,9 +20,15 @@ pub fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
 
 /// Statut normal avec infos et raccourcis
 fn draw_normal_status(frame: &mut Frame, app: &App, area: Rect) {
+    // Récupérer les couleurs de la config
+    let border_color = app.config.performance.tui.colors.border.to_ratatui_color();
+    let status_fg = app.config.performance.tui.colors.status_fg.to_ratatui_color();
+    let search_match = app.config.performance.tui.colors.search_match.to_ratatui_color();
+    let search_dimmed = app.config.performance.tui.colors.search_dimmed.to_ratatui_color();
+    
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray));
+        .border_style(Style::default().fg(border_color));
 
     let inner_area = block.inner(area);
     frame.render_widget(block, area);
@@ -39,11 +45,11 @@ fn draw_normal_status(frame: &mut Frame, app: &App, area: Rect) {
 
             // Ligne 1: infos principales avec builder
             let info_spans = StatusInfoList::new()
-                .add(" PID", pid_str, Color::Cyan)
-                .add("Uptime", app.uptime(), Color::Green)
-                .add("Scroll", scroll_str, Color::DarkGray)
-                .add("Status", if app.paused { "PAUSED" } else { "LIVE" }, if app.paused { Color::Red } else { Color::Green })
-                .add("Stats", format!("↓{} ↑{} {:.1}/s", app.total_logs_received, app.total_logs_sent, app.logs_per_second()), Color::Blue)
+                .add(" PID", pid_str, status_fg)
+                .add("Uptime", app.uptime(), status_fg)
+                .add("Scroll", scroll_str, search_dimmed)
+                .add("Status", if app.paused { "PAUSED" } else { "LIVE" }, if app.paused { search_match } else { status_fg })
+                .add("Stats", format!("↓{} ↑{} {:.1}/s", app.total_logs_received, app.total_logs_sent, app.logs_per_second()), status_fg)
                 .to_spans();
 
             let line1 = Line::from(info_spans);
@@ -72,15 +78,15 @@ fn draw_normal_status(frame: &mut Frame, app: &App, area: Rect) {
                 .to_spans();
 
             let mut spans = vec![
-                Span::styled(" Process exited ", Style::default().fg(Color::Yellow)),
-                Span::styled(" │ ", Style::default().fg(Color::DarkGray)),
+                Span::styled(" Process exited ", Style::default().fg(search_match)),
+                Span::styled(" │ ", Style::default().fg(search_dimmed)),
             ];
             spans.extend(shortcuts);
             spans.extend(vec![
-                Span::styled(" │ ", Style::default().fg(Color::DarkGray)),
+                Span::styled(" │ ", Style::default().fg(search_dimmed)),
                 Span::styled(
                     format!("Auto-quit in {}s...", n),
-                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                    Style::default().fg(search_match).add_modifier(Modifier::BOLD),
                 ),
             ]);
 
@@ -89,7 +95,7 @@ fn draw_normal_status(frame: &mut Frame, app: &App, area: Rect) {
         AppState::Restarting => {
             vec![Line::from(vec![Span::styled(
                 " Restarting... ",
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default().fg(status_fg).add_modifier(Modifier::BOLD),
             )])]
         }
     };
@@ -100,12 +106,17 @@ fn draw_normal_status(frame: &mut Frame, app: &App, area: Rect) {
 
 /// Input de recherche
 fn draw_search_input(frame: &mut Frame, app: &App, area: Rect) {
+    // Récupérer les couleurs de la config
+    let search_match = app.config.performance.tui.colors.search_match.to_ratatui_color();
+    let search_dimmed = app.config.performance.tui.colors.search_dimmed.to_ratatui_color();
+    let help_fg = app.config.performance.tui.colors.help_fg.to_ratatui_color();
+    
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Yellow))
+        .border_style(Style::default().fg(search_match))
         .title(Span::styled(
             " Search (regex) ",
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            Style::default().fg(search_match).add_modifier(Modifier::BOLD),
         ));
 
     let inner_area = block.inner(area);
@@ -114,14 +125,14 @@ fn draw_search_input(frame: &mut Frame, app: &App, area: Rect) {
     let lines = vec![
         // Ligne d'input
         Line::from(vec![
-            Span::styled(" / ", Style::default().fg(Color::Yellow)),
-            Span::styled(&app.input_buffer, Style::default().fg(Color::White)),
-            Span::styled("█", Style::default().fg(Color::White)),
+            Span::styled(" / ", Style::default().fg(search_match)),
+            Span::styled(&app.input_buffer, Style::default().fg(help_fg)),
+            Span::styled("█", Style::default().fg(help_fg)),
         ]),
         // Message ou aide
         Line::from(vec![Span::styled(
             format!(" {}", app.search_message.as_deref().unwrap_or("Enter to search, Esc to cancel")),
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(search_dimmed),
         )]),
     ];
 
@@ -130,12 +141,17 @@ fn draw_search_input(frame: &mut Frame, app: &App, area: Rect) {
 
 /// Input pour sauvegarder
 fn draw_save_input(frame: &mut Frame, app: &App, area: Rect) {
+    // Récupérer les couleurs de la config
+    let status_fg = app.config.performance.tui.colors.status_fg.to_ratatui_color();
+    let search_dimmed = app.config.performance.tui.colors.search_dimmed.to_ratatui_color();
+    let help_fg = app.config.performance.tui.colors.help_fg.to_ratatui_color();
+    
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Green))
+        .border_style(Style::default().fg(status_fg))
         .title(Span::styled(
             " Save Logs ",
-            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+            Style::default().fg(status_fg).add_modifier(Modifier::BOLD),
         ));
 
     let inner_area = block.inner(area);
@@ -143,13 +159,13 @@ fn draw_save_input(frame: &mut Frame, app: &App, area: Rect) {
 
     let lines = vec![
         Line::from(vec![
-            Span::styled(" Filename: ", Style::default().fg(Color::Green)),
-            Span::styled(&app.input_buffer, Style::default().fg(Color::White)),
-            Span::styled("█", Style::default().fg(Color::White)),
+            Span::styled(" Filename: ", Style::default().fg(status_fg)),
+            Span::styled(&app.input_buffer, Style::default().fg(help_fg)),
+            Span::styled("█", Style::default().fg(help_fg)),
         ]),
         Line::from(vec![Span::styled(
             " Enter to save, Esc to cancel ",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(search_dimmed),
         )]),
     ];
 

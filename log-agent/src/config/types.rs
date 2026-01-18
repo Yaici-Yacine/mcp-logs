@@ -1,5 +1,99 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use owo_colors::OwoColorize;
+
+impl Color {
+    /// Convertit Color en ratatui::style::Color pour la TUI
+    pub fn to_ratatui_color(&self) -> ratatui::style::Color {
+        match self {
+            Color::Hex(hex) => {
+                // Parse hex color #RRGGBB ou RRGGBB
+                let hex = hex.trim_start_matches('#');
+                if hex.len() == 6 {
+                    if let (Ok(r), Ok(g), Ok(b)) = (
+                        u8::from_str_radix(&hex[0..2], 16),
+                        u8::from_str_radix(&hex[2..4], 16),
+                        u8::from_str_radix(&hex[4..6], 16),
+                    ) {
+                        return ratatui::style::Color::Rgb(r, g, b);
+                    }
+                }
+                // Fallback to white if invalid hex
+                ratatui::style::Color::White
+            }
+            Color::Rgb(r, g, b) => ratatui::style::Color::Rgb(*r, *g, *b),
+            Color::Named(name) => name.to_ratatui_color(),
+        }
+    }
+    
+    /// Applique la couleur à un texte avec owo_colors
+    pub fn apply_to_string(&self, text: &str) -> String {
+        match self {
+            Color::Hex(hex) => {
+                // Parse hex et utilise truecolor
+                let hex = hex.trim_start_matches('#');
+                if hex.len() == 6 {
+                    if let (Ok(r), Ok(g), Ok(b)) = (
+                        u8::from_str_radix(&hex[0..2], 16),
+                        u8::from_str_radix(&hex[2..4], 16),
+                        u8::from_str_radix(&hex[4..6], 16),
+                    ) {
+                        return text.truecolor(r, g, b).to_string();
+                    }
+                }
+                text.to_string()
+            }
+            Color::Rgb(r, g, b) => text.truecolor(*r, *g, *b).to_string(),
+            Color::Named(name) => name.apply_to_string(text),
+        }
+    }
+}
+
+impl ColorName {
+    /// Convertit ColorName en ratatui::style::Color
+    pub fn to_ratatui_color(&self) -> ratatui::style::Color {
+        match self {
+            ColorName::Black => ratatui::style::Color::Black,
+            ColorName::Red => ratatui::style::Color::Red,
+            ColorName::Green => ratatui::style::Color::Green,
+            ColorName::Yellow => ratatui::style::Color::Yellow,
+            ColorName::Blue => ratatui::style::Color::Blue,
+            ColorName::Magenta => ratatui::style::Color::Magenta,
+            ColorName::Cyan => ratatui::style::Color::Cyan,
+            ColorName::White => ratatui::style::Color::White,
+            ColorName::BrightBlack => ratatui::style::Color::DarkGray,
+            ColorName::BrightRed => ratatui::style::Color::LightRed,
+            ColorName::BrightGreen => ratatui::style::Color::LightGreen,
+            ColorName::BrightYellow => ratatui::style::Color::LightYellow,
+            ColorName::BrightBlue => ratatui::style::Color::LightBlue,
+            ColorName::BrightMagenta => ratatui::style::Color::LightMagenta,
+            ColorName::BrightCyan => ratatui::style::Color::LightCyan,
+            ColorName::BrightWhite => ratatui::style::Color::White,
+        }
+    }
+    
+    /// Applique la couleur à un texte avec owo_colors
+    pub fn apply_to_string(&self, text: &str) -> String {
+        match self {
+            ColorName::Black => text.black().to_string(),
+            ColorName::Red => text.red().to_string(),
+            ColorName::Green => text.green().to_string(),
+            ColorName::Yellow => text.yellow().to_string(),
+            ColorName::Blue => text.blue().to_string(),
+            ColorName::Magenta => text.magenta().to_string(),
+            ColorName::Cyan => text.cyan().to_string(),
+            ColorName::White => text.white().to_string(),
+            ColorName::BrightBlack => text.bright_black().to_string(),
+            ColorName::BrightRed => text.bright_red().to_string(),
+            ColorName::BrightGreen => text.bright_green().to_string(),
+            ColorName::BrightYellow => text.bright_yellow().to_string(),
+            ColorName::BrightBlue => text.bright_blue().to_string(),
+            ColorName::BrightMagenta => text.bright_magenta().to_string(),
+            ColorName::BrightCyan => text.bright_cyan().to_string(),
+            ColorName::BrightWhite => text.bright_white().to_string(),
+        }
+    }
+}
 
 /// Configuration d'une commande prédéfinie
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -137,8 +231,20 @@ pub struct ColorStyle {
 
 /// Couleurs disponibles
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(untagged)]
 pub enum Color {
+    /// Couleur hexadécimale (ex: "#FF5733" ou "FF5733")
+    Hex(String),
+    /// Couleur RGB
+    Rgb(u8, u8, u8),
+    /// Couleur nommée
+    Named(ColorName),
+}
+
+/// Noms de couleurs standards
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ColorName {
     Black,
     Red,
     Green,
@@ -214,6 +320,35 @@ pub struct TuiConfig {
     pub tick_rate_ms: u64,
     #[serde(default = "default_frame_rate")]
     pub frame_rate_ms: u64,
+    #[serde(default)]
+    pub colors: TuiColorConfig,
+}
+
+/// Configuration des couleurs de la TUI
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TuiColorConfig {
+    #[serde(default = "default_tui_header_bg")]
+    pub header_bg: Color,
+    #[serde(default = "default_tui_header_fg")]
+    pub header_fg: Color,
+    #[serde(default = "default_tui_status_bg")]
+    pub status_bg: Color,
+    #[serde(default = "default_tui_status_fg")]
+    pub status_fg: Color,
+    #[serde(default = "default_tui_border")]
+    pub border: Color,
+    #[serde(default = "default_tui_selected_bg")]
+    pub selected_bg: Color,
+    #[serde(default = "default_tui_selected_fg")]
+    pub selected_fg: Color,
+    #[serde(default = "default_tui_search_match")]
+    pub search_match: Color,
+    #[serde(default = "default_tui_search_dimmed")]
+    pub search_dimmed: Color,
+    #[serde(default = "default_tui_help_bg")]
+    pub help_bg: Color,
+    #[serde(default = "default_tui_help_fg")]
+    pub help_fg: Color,
 }
 
 fn default_max_logs() -> usize {
@@ -236,11 +371,57 @@ fn default_flush_interval() -> u64 {
     100
 }
 
+// ==================== Default helpers for TUI colors ====================
+
+fn default_tui_header_bg() -> Color {
+    Color::Named(ColorName::Blue)
+}
+
+fn default_tui_header_fg() -> Color {
+    Color::Named(ColorName::White)
+}
+
+fn default_tui_status_bg() -> Color {
+    Color::Named(ColorName::Black)
+}
+
+fn default_tui_status_fg() -> Color {
+    Color::Named(ColorName::Cyan)
+}
+
+fn default_tui_border() -> Color {
+    Color::Named(ColorName::Cyan)
+}
+
+fn default_tui_selected_bg() -> Color {
+    Color::Named(ColorName::Cyan)
+}
+
+fn default_tui_selected_fg() -> Color {
+    Color::Named(ColorName::Black)
+}
+
+fn default_tui_search_match() -> Color {
+    Color::Named(ColorName::Yellow)
+}
+
+fn default_tui_search_dimmed() -> Color {
+    Color::Named(ColorName::BrightBlack)
+}
+
+fn default_tui_help_bg() -> Color {
+    Color::Named(ColorName::Black)
+}
+
+fn default_tui_help_fg() -> Color {
+    Color::Named(ColorName::White)
+}
+
 // ==================== Default helpers for ColorStyle ====================
 
 fn default_error_color() -> ColorStyle {
     ColorStyle {
-        fg: Some(Color::Red),
+        fg: Some(Color::Named(ColorName::Red)),
         bg: None,
         style: vec![Style::Bold],
     }
@@ -248,7 +429,7 @@ fn default_error_color() -> ColorStyle {
 
 fn default_warn_color() -> ColorStyle {
     ColorStyle {
-        fg: Some(Color::Yellow),
+        fg: Some(Color::Named(ColorName::Yellow)),
         bg: None,
         style: vec![],
     }
@@ -256,7 +437,7 @@ fn default_warn_color() -> ColorStyle {
 
 fn default_debug_color() -> ColorStyle {
     ColorStyle {
-        fg: Some(Color::Blue),
+        fg: Some(Color::Named(ColorName::Blue)),
         bg: None,
         style: vec![],
     }
@@ -264,7 +445,7 @@ fn default_debug_color() -> ColorStyle {
 
 fn default_info_color() -> ColorStyle {
     ColorStyle {
-        fg: Some(Color::White),
+        fg: Some(Color::Named(ColorName::White)),
         bg: None,
         style: vec![],
     }
@@ -272,7 +453,7 @@ fn default_info_color() -> ColorStyle {
 
 fn default_success_color() -> ColorStyle {
     ColorStyle {
-        fg: Some(Color::Green),
+        fg: Some(Color::Named(ColorName::Green)),
         bg: None,
         style: vec![Style::Bold],
     }
@@ -280,7 +461,7 @@ fn default_success_color() -> ColorStyle {
 
 fn default_system_error_color() -> ColorStyle {
     ColorStyle {
-        fg: Some(Color::Red),
+        fg: Some(Color::Named(ColorName::Red)),
         bg: None,
         style: vec![Style::Bold],
     }
@@ -288,7 +469,7 @@ fn default_system_error_color() -> ColorStyle {
 
 fn default_system_info_color() -> ColorStyle {
     ColorStyle {
-        fg: Some(Color::Cyan),
+        fg: Some(Color::Named(ColorName::Cyan)),
         bg: None,
         style: vec![],
     }
@@ -296,7 +477,7 @@ fn default_system_info_color() -> ColorStyle {
 
 fn default_dim_color() -> ColorStyle {
     ColorStyle {
-        fg: Some(Color::BrightBlack),
+        fg: Some(Color::Named(ColorName::BrightBlack)),
         bg: None,
         style: vec![],
     }
@@ -346,22 +527,22 @@ impl Default for ColorConfig {
     fn default() -> Self {
         Self {
             error: ColorStyle {
-                fg: Some(Color::Red),
+                fg: Some(Color::Named(ColorName::Red)),
                 bg: None,
                 style: vec![Style::Bold],
             },
             warn: ColorStyle {
-                fg: Some(Color::Yellow),
+                fg: Some(Color::Named(ColorName::Yellow)),
                 bg: None,
                 style: vec![],
             },
             debug: ColorStyle {
-                fg: Some(Color::Blue),
+                fg: Some(Color::Named(ColorName::Blue)),
                 bg: None,
                 style: vec![],
             },
             info: ColorStyle {
-                fg: Some(Color::White),
+                fg: Some(Color::Named(ColorName::White)),
                 bg: None,
                 style: vec![],
             },
@@ -374,22 +555,22 @@ impl Default for SystemColorConfig {
     fn default() -> Self {
         Self {
             success: ColorStyle {
-                fg: Some(Color::Green),
+                fg: Some(Color::Named(ColorName::Green)),
                 bg: None,
                 style: vec![Style::Bold],
             },
             error: ColorStyle {
-                fg: Some(Color::Red),
+                fg: Some(Color::Named(ColorName::Red)),
                 bg: None,
                 style: vec![Style::Bold],
             },
             info: ColorStyle {
-                fg: Some(Color::Cyan),
+                fg: Some(Color::Named(ColorName::Cyan)),
                 bg: None,
                 style: vec![],
             },
             dim: ColorStyle {
-                fg: Some(Color::BrightBlack),
+                fg: Some(Color::Named(ColorName::BrightBlack)),
                 bg: None,
                 style: vec![],
             },
@@ -422,6 +603,25 @@ impl Default for TuiConfig {
             max_logs: 5000,
             tick_rate_ms: 250,
             frame_rate_ms: 100,
+            colors: TuiColorConfig::default(),
+        }
+    }
+}
+
+impl Default for TuiColorConfig {
+    fn default() -> Self {
+        Self {
+            header_bg: default_tui_header_bg(),
+            header_fg: default_tui_header_fg(),
+            status_bg: default_tui_status_bg(),
+            status_fg: default_tui_status_fg(),
+            border: default_tui_border(),
+            selected_bg: default_tui_selected_bg(),
+            selected_fg: default_tui_selected_fg(),
+            search_match: default_tui_search_match(),
+            search_dimmed: default_tui_search_dimmed(),
+            help_bg: default_tui_help_bg(),
+            help_fg: default_tui_help_fg(),
         }
     }
 }
