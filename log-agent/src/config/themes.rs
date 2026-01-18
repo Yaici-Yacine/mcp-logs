@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+/// Type alias for theme information (name, description, author)
+pub type ThemeInfo = (String, Option<String>, Option<String>);
+
 /// Configuration complète d'un thème
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemeConfig {
@@ -90,11 +93,10 @@ impl ThemeManager {
             let entry = entry?;
             let path = entry.path();
             
-            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("toml") {
-                if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
+            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("toml")
+                && let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
                     themes.push(name.to_string());
                 }
-            }
         }
         
         themes.sort();
@@ -102,7 +104,7 @@ impl ThemeManager {
     }
 
     /// Liste tous les thèmes avec leurs descriptions
-    pub fn list_themes_with_info(&self) -> Result<Vec<(String, Option<String>, Option<String>)>> {
+    pub fn list_themes_with_info(&self) -> Result<Vec<ThemeInfo>> {
         let themes = self.list_themes()?;
         let mut result = Vec::new();
 

@@ -9,13 +9,12 @@ pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
 
     // 1. Charger config globale si elle existe et merger
     let global_config_dir = get_global_config_dir();
-    if let Some(global_path) = get_global_config_path() {
-        if global_path.exists() {
+    if let Some(global_path) = get_global_config_path()
+        && global_path.exists() {
             let contents = fs::read_to_string(&global_path)?;
             let global_table: toml::Table = toml::from_str(&contents)?;
             merge_toml_tables(&mut merged_table, global_table);
         }
-    }
 
     // 2. Charger config locale si elle existe et merger
     let local_path = get_local_config_path();
@@ -111,16 +110,14 @@ fn apply_env_vars(mut config: Config) -> Config {
     if let Ok(val) = std::env::var("MCP_LOG_AGENT_VERBOSE") {
         config.agent.verbose = val.to_lowercase() == "true";
     }
-    if let Ok(val) = std::env::var("MCP_LOG_AGENT_CONNECTION_TIMEOUT") {
-        if let Ok(timeout) = val.parse() {
+    if let Ok(val) = std::env::var("MCP_LOG_AGENT_CONNECTION_TIMEOUT")
+        && let Ok(timeout) = val.parse() {
             config.agent.connection_timeout = timeout;
         }
-    }
-    if let Ok(val) = std::env::var("MCP_LOG_AGENT_RETRY_ATTEMPTS") {
-        if let Ok(attempts) = val.parse() {
+    if let Ok(val) = std::env::var("MCP_LOG_AGENT_RETRY_ATTEMPTS")
+        && let Ok(attempts) = val.parse() {
             config.agent.retry_attempts = attempts;
         }
-    }
 
     // Output
     if let Ok(val) = std::env::var("MCP_LOG_AGENT_COLORS") {
@@ -142,16 +139,14 @@ fn apply_env_vars(mut config: Config) -> Config {
     }
 
     // Performance
-    if let Ok(val) = std::env::var("MCP_LOG_AGENT_BUFFER_SIZE") {
-        if let Ok(size) = val.parse() {
+    if let Ok(val) = std::env::var("MCP_LOG_AGENT_BUFFER_SIZE")
+        && let Ok(size) = val.parse() {
             config.performance.buffer_size = size;
         }
-    }
-    if let Ok(val) = std::env::var("MCP_LOG_AGENT_FLUSH_INTERVAL") {
-        if let Ok(interval) = val.parse() {
+    if let Ok(val) = std::env::var("MCP_LOG_AGENT_FLUSH_INTERVAL")
+        && let Ok(interval) = val.parse() {
             config.performance.flush_interval = interval;
         }
-    }
 
     // Filters
     if let Ok(val) = std::env::var("MCP_LOG_FILTER_MIN_LEVEL") {
@@ -167,26 +162,22 @@ fn apply_env_vars(mut config: Config) -> Config {
 
     // Colors - Pour les couleurs via env vars, on supporte les couleurs fg principales
     // Format: MCP_LOG_COLOR_ERROR_FG=bright_red, MCP_LOG_COLOR_WARN_FG=yellow, etc.
-    if let Ok(val) = std::env::var("MCP_LOG_COLOR_ERROR_FG") {
-        if let Some(color) = parse_color(&val) {
+    if let Ok(val) = std::env::var("MCP_LOG_COLOR_ERROR_FG")
+        && let Some(color) = parse_color(&val) {
             config.colors.error.fg = Some(color);
         }
-    }
-    if let Ok(val) = std::env::var("MCP_LOG_COLOR_WARN_FG") {
-        if let Some(color) = parse_color(&val) {
+    if let Ok(val) = std::env::var("MCP_LOG_COLOR_WARN_FG")
+        && let Some(color) = parse_color(&val) {
             config.colors.warn.fg = Some(color);
         }
-    }
-    if let Ok(val) = std::env::var("MCP_LOG_COLOR_INFO_FG") {
-        if let Some(color) = parse_color(&val) {
+    if let Ok(val) = std::env::var("MCP_LOG_COLOR_INFO_FG")
+        && let Some(color) = parse_color(&val) {
             config.colors.info.fg = Some(color);
         }
-    }
-    if let Ok(val) = std::env::var("MCP_LOG_COLOR_DEBUG_FG") {
-        if let Some(color) = parse_color(&val) {
+    if let Ok(val) = std::env::var("MCP_LOG_COLOR_DEBUG_FG")
+        && let Some(color) = parse_color(&val) {
             config.colors.debug.fg = Some(color);
         }
-    }
 
     config
 }
@@ -203,11 +194,10 @@ fn parse_color(s: &str) -> Option<super::types::Color> {
     // Check if it's RGB format (r,g,b)
     if s.contains(',') {
         let parts: Vec<&str> = s.split(',').collect();
-        if parts.len() == 3 {
-            if let (Ok(r), Ok(g), Ok(b)) = (parts[0].trim().parse(), parts[1].trim().parse(), parts[2].trim().parse()) {
+        if parts.len() == 3
+            && let (Ok(r), Ok(g), Ok(b)) = (parts[0].trim().parse(), parts[1].trim().parse(), parts[2].trim().parse()) {
                 return Some(Color::Rgb(r, g, b));
             }
-        }
     }
     
     // Named colors
@@ -590,8 +580,6 @@ fn parse_value_for_field(section: &str, field: &str, value: &str) -> Result<toml
 pub fn is_git_repository() -> bool {
     PathBuf::from(".git").exists()
 }
-
-/// Vérifie si .gitignore existe
 
 /// Vérifie si le fichier de config est déjà dans .gitignore
 pub fn is_config_in_gitignore(config_filename: &str) -> Result<bool, Box<dyn std::error::Error>> {

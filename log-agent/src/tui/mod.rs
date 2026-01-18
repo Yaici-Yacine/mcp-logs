@@ -36,7 +36,7 @@ pub async fn run_tui(
     let mut app = App::new(project.clone(), command.clone(), config.clone());
 
     // Créer le channel pour les logs
-    let (tx_log, mut rx_log) = mpsc::channel::<LogMessage>(config.performance.buffer_size);
+    let (tx_log, rx_log) = mpsc::channel::<LogMessage>(config.performance.buffer_size);
 
     // Démarrer le socket worker
     let socket_path = config.agent.socket_path.clone();
@@ -70,14 +70,18 @@ pub async fn run_tui(
     let mut last_frame = std::time::Instant::now();
 
     // Boucle principale
+    let mut channels = Channels {
+        rx_log,
+        tx_log: tx_log.clone(),
+        tx_socket,
+    };
+    
     let result = run_app_loop(
         &mut terminal,
         &mut app,
         &mut supervisor,
         &mut event_handler,
-        &mut rx_log,
-        tx_log.clone(),
-        tx_socket,
+        &mut channels,
         frame_duration,
         &mut last_frame,
     )
@@ -100,14 +104,19 @@ pub async fn run_tui(
     result
 }
 
+/// Structure pour regrouper les channels de communication
+struct Channels {
+    rx_log: mpsc::Receiver<LogMessage>,
+    tx_log: mpsc::Sender<LogMessage>,
+    tx_socket: mpsc::Sender<LogMessage>,
+}
+
 async fn run_app_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stderr>>,
     app: &mut App,
     supervisor: &mut Supervisor,
     event_handler: &mut EventHandler,
-    rx_log: &mut mpsc::Receiver<LogMessage>,
-    tx_log: mpsc::Sender<LogMessage>,
-    tx_socket: mpsc::Sender<LogMessage>,
+    channels: &mut Channels,
     frame_duration: std::time::Duration,
     last_frame: &mut std::time::Instant,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -143,7 +152,7 @@ async fn run_app_loop(
                                         terminal.draw(|f| ui::draw(f, app))?;
                                         *last_frame = std::time::Instant::now();
                                         
-                                        match supervisor.restart(tx_log.clone()).await {
+                                        match supervisor.restart(channels.tx_log.clone()).await {
                                             Ok(pid) => {
                                                 app.set_pid(Some(pid));
                                                 app.set_state(AppState::Running);
@@ -208,10 +217,8 @@ async fn run_app_loop(
                                     KeyCode::Enter => {
                                         if app.input_mode == InputMode::Search {
                                             app.confirm_search();
-                                        } else {
-                                            if let Err(e) = app.save_logs() {
-                                                app.add_system_log(format!("Save failed: {}", e));
-                                            }
+                                        } else if let Err(e) = app.save_logs() {
+                                            app.add_system_log(format!("Save failed: {}", e));
                                         }
                                     }
                                     KeyCode::Esc => {
@@ -264,8 +271,8 @@ async fn run_app_loop(
                         }
                         
                         // Vérifier si le processus est terminé
-                        if let AppState::Running = app.state {
-                            if let Some(status) = supervisor.try_wait() {
+                        if let AppState::Running = app.state
+                            && let Some(status) = supervisor.try_wait() {
                                 app.set_pid(None);
                                 if status.success() {
                                     app.add_system_log("Process exited successfully".to_string());
@@ -274,7 +281,6 @@ async fn run_app_loop(
                                 }
                                 app.set_state(AppState::WaitingCountdown(5));
                             }
-                        }
                         
                         // Forcer un redraw périodique pour l'uptime
                         app.needs_redraw = true;
@@ -287,12 +293,12 @@ async fn run_app_loop(
             }
             
             // Nouveau log du processus
-            Some(log) = rx_log.recv() => {
+            Some(log) = channels.rx_log.recv() => {
                 // Ajouter à l'affichage
                 app.add_log(log.clone());
                 
                 // Envoyer au socket
-                if tx_socket.send(log).await.is_ok() {
+                if channels.tx_socket.send(log).await.is_ok() {
                     app.increment_sent();
                 }
             }

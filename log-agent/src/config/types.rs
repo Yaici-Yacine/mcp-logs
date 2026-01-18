@@ -9,15 +9,14 @@ impl Color {
             Color::Hex(hex) => {
                 // Parse hex color #RRGGBB ou RRGGBB
                 let hex = hex.trim_start_matches('#');
-                if hex.len() == 6 {
-                    if let (Ok(r), Ok(g), Ok(b)) = (
+                if hex.len() == 6
+                    && let (Ok(r), Ok(g), Ok(b)) = (
                         u8::from_str_radix(&hex[0..2], 16),
                         u8::from_str_radix(&hex[2..4], 16),
                         u8::from_str_radix(&hex[4..6], 16),
                     ) {
                         return ratatui::style::Color::Rgb(r, g, b);
                     }
-                }
                 // Fallback to white if invalid hex
                 ratatui::style::Color::White
             }
@@ -32,15 +31,14 @@ impl Color {
             Color::Hex(hex) => {
                 // Parse hex et utilise truecolor
                 let hex = hex.trim_start_matches('#');
-                if hex.len() == 6 {
-                    if let (Ok(r), Ok(g), Ok(b)) = (
+                if hex.len() == 6
+                    && let (Ok(r), Ok(g), Ok(b)) = (
                         u8::from_str_radix(&hex[0..2], 16),
                         u8::from_str_radix(&hex[2..4], 16),
                         u8::from_str_radix(&hex[4..6], 16),
                     ) {
                         return text.truecolor(r, g, b).to_string();
                     }
-                }
                 text.to_string()
             }
             Color::Rgb(r, g, b) => text.truecolor(*r, *g, *b).to_string(),
@@ -188,17 +186,14 @@ fn default_true() -> bool {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum OutputFormat {
+    #[default]
     Colored,
     Plain,
     Json,
 }
 
-impl Default for OutputFormat {
-    fn default() -> Self {
-        OutputFormat::Colored
-    }
-}
 
 /// Configuration des couleurs
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -295,18 +290,15 @@ pub struct FilterConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum LogLevel {
+    #[default]
     Debug,
     Info,
     Warn,
     Error,
 }
 
-impl Default for LogLevel {
-    fn default() -> Self {
-        LogLevel::Debug
-    }
-}
 
 /// Configuration des performances
 #[derive(Debug, Clone, Serialize, Deserialize)]

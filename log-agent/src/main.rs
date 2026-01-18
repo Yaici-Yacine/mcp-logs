@@ -130,7 +130,7 @@ async fn run_command(
     if use_watch {
         return tui::run_tui(project, command, config)
             .await
-            .map_err(|e| -> Box<dyn std::error::Error> { Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())) });
+            .map_err(|e| -> Box<dyn std::error::Error> { Box::new(std::io::Error::other(e.to_string())) });
     }
     
     // Mode classique (one-shot)
@@ -334,8 +334,8 @@ fn handle_config_command(action: ConfigAction) -> Result<(), Box<dyn std::error:
             
             let mut has_errors = false;
             
-            if let Some(global_path) = config::get_global_config_path() {
-                if global_path.exists() {
+            if let Some(global_path) = config::get_global_config_path()
+                && global_path.exists() {
                     match config::load_config() {
                         Ok(_) => println!("{}", "  Global config: ✓ Valid".green()),
                         Err(e) => {
@@ -344,7 +344,6 @@ fn handle_config_command(action: ConfigAction) -> Result<(), Box<dyn std::error:
                         }
                     }
                 }
-            }
             
             let local_path = config::get_local_config_path();
             if local_path.exists() {
@@ -568,20 +567,15 @@ fn handle_theme_action(action: cli::ThemeAction) -> Result<(), Box<dyn std::erro
             // Déterminer quel fichier de config modifier
             let config_path = if global {
                 config::get_global_config_path().ok_or("Could not determine global config path")?
+            } else if config::has_local_config() {
+                config::get_local_config_path()
             } else {
-                if config::has_local_config() {
-                    config::get_local_config_path()
-                } else {
-                    config::get_global_config_path().ok_or("Could not determine config path")?
-                }
+                config::get_global_config_path().ok_or("Could not determine config path")?
             };
             
             // Charger la config existante
             let mut config = if config_path.exists() {
-                match config::load_config_from_file(&config_path) {
-                    Ok(c) => c,
-                    Err(_) => config::Config::default(),
-                }
+                config::load_config_from_file(&config_path).unwrap_or_default()
             } else {
                 config::Config::default()
             };

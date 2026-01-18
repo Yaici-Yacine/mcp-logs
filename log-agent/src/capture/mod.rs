@@ -103,7 +103,7 @@ impl ProcessCapture {
         let _ = stderr_task.await;
 
         if status.success() {
-            eprintln!("{}", format!("✓ Process exited successfully").green());
+            eprintln!("{}", "✓ Process exited successfully".to_string().green());
         } else {
             eprintln!(
                 "{}",

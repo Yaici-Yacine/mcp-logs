@@ -401,9 +401,9 @@ impl App {
                 self.logs.pop_front();
             }
             
-            self.add_system_log(format!("Resumed capture"));
+            self.add_system_log("Resumed capture".to_string());
         } else if self.paused {
-            self.add_system_log(format!("Paused capture"));
+            self.add_system_log("Paused capture".to_string());
         }
         
         self.needs_redraw = true;

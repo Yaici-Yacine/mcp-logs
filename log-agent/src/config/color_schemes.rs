@@ -1,3 +1,6 @@
+// Allow dead code as these color schemes may be used in the future
+#![allow(dead_code)]
+
 use super::types::{Color, ColorConfig, ColorName, ColorStyle, Style, SystemColorConfig};
 
 /// Retourne le schéma de couleurs par défaut
