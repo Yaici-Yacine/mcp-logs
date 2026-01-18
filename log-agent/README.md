@@ -425,30 +425,142 @@ mcp-log-agent config detect
 mcp-log-agent config reset [--global|--local]
 ```
 
-### Color Scheme Management
+### Theme Management
 
-Customize terminal colors for different log levels:
+Customize colors for both CLI output and TUI interface using themes. Themes are stored as TOML files in `~/.config/mcp-log-agent/themes/`.
 
-```bash
-# List available color schemes
-mcp-log-agent config colors list
+#### Using Themes
 
-# Apply a color scheme
-mcp-log-agent config colors set <scheme>
+Set a theme in your configuration file:
 
-# Preview a scheme before applying
-mcp-log-agent config colors preview <scheme>
-
-# Test current colors
-mcp-log-agent config colors test
+```toml
+# In .mcp-log-agent.toml or ~/.config/mcp-log-agent/config.toml
+theme = "dracula"
 ```
 
-**Available color schemes:**
-- `default` - Standard colors (red errors, yellow warnings)
-- `solarized-dark` - Solarized Dark theme
-- `high-contrast` - High contrast for accessibility
-- `minimal` - Minimal colors, no bold
-- `monochrome` - Shades of gray only
+Or use the config command:
+
+```bash
+# Set theme in local config
+mcp-log-agent config set theme dracula
+
+# Set theme in global config
+mcp-log-agent config set theme nord --global
+```
+
+#### Built-in Themes
+
+The following themes are automatically created on first run:
+
+- `default` - Standard vibrant colors with blue/cyan accents
+- `dracula` - Popular dark theme with purple accents (#282A36 background)
+- `nord` - Arctic, north-bluish color palette (#2E3440 background)
+- `monokai` - Monokai Pro inspired scheme (#272822 background)
+- `solarized-dark` - Solarized Dark color scheme (#002B36 background)
+- `minimal` - Minimal monochrome theme (black/white/gray)
+
+#### Creating Custom Themes
+
+1. Navigate to the themes directory:
+   ```bash
+   cd ~/.config/mcp-log-agent/themes/
+   ```
+
+2. Copy an existing theme as a template:
+   ```bash
+   cp default.toml my-theme.toml
+   ```
+
+3. Edit your theme file:
+   ```toml
+   name = "my-theme"
+   description = "My custom color theme"
+   author = "Your Name"
+   
+   # Log level colors (CLI output)
+   [colors.error]
+   fg = "#FF5555"  # Hex color
+   style = ["bold"]
+   
+   [colors.warn]
+   fg = "yellow"   # Named color
+   style = []
+   
+   [colors.info]
+   fg = "88C0D0"   # Hex without #
+   style = []
+   
+   [colors.debug]
+   fg = "blue"
+   style = []
+   
+   # System messages
+   [colors.system.success]
+   fg = "green"
+   style = ["bold"]
+   
+   [colors.system.error]
+   fg = "red"
+   style = ["bold"]
+   
+   [colors.system.info]
+   fg = "cyan"
+   style = []
+   
+   [colors.system.dim]
+   fg = "bright_black"
+   style = ["dimmed"]
+   
+   # TUI interface colors
+   [tui]
+   header_bg = "#2E3440"
+   header_fg = "#ECEFF4"
+   status_bg = "#2E3440"
+   status_fg = "#A3BE8C"
+   border = "#88C0D0"
+   selected_bg = "#3B4252"
+   selected_fg = "#ECEFF4"
+   search_match = "#EBCB8B"
+   search_dimmed = "#4C566A"
+   help_bg = "#2E3440"
+   help_fg = "#ECEFF4"
+   ```
+
+4. Use your custom theme:
+   ```bash
+   mcp-log-agent config set theme my-theme
+   ```
+
+#### Supported Color Formats
+
+Themes support three color formats:
+
+1. **Hex colors**: `"#FF5733"` or `"FF5733"` - Full RGB control
+2. **Named colors**: `"red"`, `"bright_cyan"`, `"blue"` - Standard terminal colors
+3. **RGB tuples**: `"255,87,51"` - Direct RGB values
+
+**Available named colors:**
+- Basic: `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`
+- Bright: `bright_black`, `bright_red`, `bright_green`, `bright_yellow`, `bright_blue`, `bright_magenta`, `bright_cyan`, `bright_white`
+
+**Available styles:**
+- `bold`, `dimmed`, `italic`, `underline`, `blink`, `reverse`, `strikethrough`
+
+#### Theme Structure
+
+A complete theme file includes:
+
+- **Metadata**: `name`, `description`, `author` (optional)
+- **Log colors** (`colors.*`): Colors for error, warn, info, debug logs
+- **System colors** (`colors.system.*`): Colors for agent messages (success, error, info, dim)
+- **TUI colors** (`tui.*`): Colors for the interactive Terminal UI
+  - `header_bg/fg`: Top bar (project name, command)
+  - `status_bg/fg`: Bottom bar (stats, status)
+  - `border`: All borders and frames
+  - `selected_bg/fg`: Selected log line highlight
+  - `search_match`: Highlighted search results
+  - `search_dimmed`: Dimmed/filtered out logs
+  - `help_bg/fg`: Help overlay popup
 
 ### Setting Configuration Values
 
@@ -519,13 +631,8 @@ format = "colored"               # colored | plain | json
 show_timestamps = false
 show_pid = false
 
-[colors.error]
-fg = "red"
-style = ["bold"]
-
-[colors.warn]
-fg = "yellow"
-style = []
+# Theme configuration (colors are loaded from theme file)
+theme = "default"                # default | dracula | nord | monokai | solarized-dark | minimal
 
 [filters]
 ignore_patterns = []             # Regex patterns to exclude

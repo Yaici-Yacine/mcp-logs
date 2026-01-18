@@ -159,7 +159,7 @@ async fn capture_stream<R>(
 /// Affiche un log avec coloration selon le niveau et la config
 fn print_colored_log(log: &LogMessage, config: &Config) {
     use owo_colors::OwoColorize;
-    use crate::config::types::{Color, Style};
+    use crate::config::types::Style;
     
     // Vérifier si les couleurs sont activées
     if !config.output.colors {
@@ -181,40 +181,20 @@ fn print_colored_log(log: &LogMessage, config: &Config) {
     let has_bold = color_style.style.iter().any(|s| matches!(s, Style::Bold));
     let has_italic = color_style.style.iter().any(|s| matches!(s, Style::Italic));
     
-    // Macro pour appliquer couleur + styles de manière DRY
-    macro_rules! apply_color {
-        ($msg:expr, $color_method:ident) => {{
-            let colored = $msg.$color_method();
-            if has_bold && has_italic {
-                eprintln!("{}", colored.bold().italic());
-            } else if has_bold {
-                eprintln!("{}", colored.bold());
-            } else if has_italic {
-                eprintln!("{}", colored.italic());
-            } else {
-                eprintln!("{}", colored);
-            }
-        }};
-    }
-    
     // Appliquer la couleur avec les styles
     match &color_style.fg {
-        Some(Color::Red) => apply_color!(message, red),
-        Some(Color::Yellow) => apply_color!(message, yellow),
-        Some(Color::Blue) => apply_color!(message, blue),
-        Some(Color::Green) => apply_color!(message, green),
-        Some(Color::Magenta) => apply_color!(message, magenta),
-        Some(Color::Cyan) => apply_color!(message, cyan),
-        Some(Color::White) => apply_color!(message, white),
-        Some(Color::Black) => apply_color!(message, black),
-        Some(Color::BrightRed) => apply_color!(message, bright_red),
-        Some(Color::BrightYellow) => apply_color!(message, bright_yellow),
-        Some(Color::BrightBlue) => apply_color!(message, bright_blue),
-        Some(Color::BrightGreen) => apply_color!(message, bright_green),
-        Some(Color::BrightMagenta) => apply_color!(message, bright_magenta),
-        Some(Color::BrightCyan) => apply_color!(message, bright_cyan),
-        Some(Color::BrightWhite) => apply_color!(message, bright_white),
-        Some(Color::BrightBlack) => apply_color!(message, bright_black),
+        Some(color) => {
+            let colored_text = color.apply_to_string(message);
+            if has_bold && has_italic {
+                eprintln!("{}", colored_text.bold().italic());
+            } else if has_bold {
+                eprintln!("{}", colored_text.bold());
+            } else if has_italic {
+                eprintln!("{}", colored_text.italic());
+            } else {
+                eprintln!("{}", colored_text);
+            }
+        }
         None => {
             if has_bold {
                 eprintln!("{}", message.bold());

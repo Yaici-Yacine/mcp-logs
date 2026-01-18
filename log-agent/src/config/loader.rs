@@ -1,4 +1,5 @@
 use super::types::Config;
+use super::themes::{ThemeManager, ThemeConfig};
 use std::fs;
 use std::path::PathBuf;
 
@@ -7,6 +8,7 @@ pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
     let mut merged_table = toml::Table::new();
 
     // 1. Charger config globale si elle existe et merger
+    let global_config_dir = get_global_config_dir();
     if let Some(global_path) = get_global_config_path() {
         if global_path.exists() {
             let contents = fs::read_to_string(&global_path)?;
@@ -30,7 +32,43 @@ pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
     // 4. Appliquer variables d'environnement
     config = apply_env_vars(config);
 
+    // 5. Charger le thème et appliquer les couleurs
+    if let Some(config_dir) = global_config_dir {
+        let theme_manager = ThemeManager::new(config_dir.clone());
+        
+        // Initialiser les thèmes par défaut si nécessaire
+        let _ = theme_manager.initialize_default_themes();
+        
+        // Charger le thème spécifié (ou "default" si erreur)
+        let theme = theme_manager.load_theme(&config.theme)
+            .unwrap_or_else(|_| {
+                eprintln!("Warning: Could not load theme '{}', using default", config.theme);
+                theme_manager.load_theme("default")
+                    .unwrap_or_else(|_| create_fallback_theme())
+            });
+        
+        // Appliquer les couleurs du thème
+        config.colors = theme.colors;
+        config.performance.tui.colors = theme.tui;
+    } else {
+        // Pas de config dir, utiliser le thème par défaut
+        let theme = create_fallback_theme();
+        config.colors = theme.colors;
+        config.performance.tui.colors = theme.tui;
+    }
+
     Ok(config)
+}
+
+/// Crée un thème de fallback en cas d'erreur
+fn create_fallback_theme() -> ThemeConfig {
+    super::themes::ThemeConfig {
+        name: "fallback".to_string(),
+        description: None,
+        author: None,
+        colors: super::types::ColorConfig::default(),
+        tui: super::types::TuiColorConfig::default(),
+    }
 }
 
 /// Merge two toml tables recursively
@@ -148,32 +186,56 @@ fn apply_env_vars(mut config: Config) -> Config {
 
 /// Parse une couleur depuis une string
 fn parse_color(s: &str) -> Option<super::types::Color> {
-    use super::types::Color;
+    use super::types::{Color, ColorName};
+    
+    // Check if it's a hex color
+    if s.starts_with('#') || (s.len() == 6 && s.chars().all(|c| c.is_ascii_hexdigit())) {
+        return Some(Color::Hex(if s.starts_with('#') { s.to_string() } else { format!("#{}", s) }));
+    }
+    
+    // Check if it's RGB format (r,g,b)
+    if s.contains(',') {
+        let parts: Vec<&str> = s.split(',').collect();
+        if parts.len() == 3 {
+            if let (Ok(r), Ok(g), Ok(b)) = (parts[0].trim().parse(), parts[1].trim().parse(), parts[2].trim().parse()) {
+                return Some(Color::Rgb(r, g, b));
+            }
+        }
+    }
+    
+    // Named colors
     match s.to_lowercase().as_str() {
-        "black" => Some(Color::Black),
-        "red" => Some(Color::Red),
-        "green" => Some(Color::Green),
-        "yellow" => Some(Color::Yellow),
-        "blue" => Some(Color::Blue),
-        "magenta" => Some(Color::Magenta),
-        "cyan" => Some(Color::Cyan),
-        "white" => Some(Color::White),
-        "bright_black" => Some(Color::BrightBlack),
-        "bright_red" => Some(Color::BrightRed),
-        "bright_green" => Some(Color::BrightGreen),
-        "bright_yellow" => Some(Color::BrightYellow),
-        "bright_blue" => Some(Color::BrightBlue),
-        "bright_magenta" => Some(Color::BrightMagenta),
-        "bright_cyan" => Some(Color::BrightCyan),
-        "bright_white" => Some(Color::BrightWhite),
+        "black" => Some(Color::Named(ColorName::Black)),
+        "red" => Some(Color::Named(ColorName::Red)),
+        "green" => Some(Color::Named(ColorName::Green)),
+        "yellow" => Some(Color::Named(ColorName::Yellow)),
+        "blue" => Some(Color::Named(ColorName::Blue)),
+        "magenta" => Some(Color::Named(ColorName::Magenta)),
+        "cyan" => Some(Color::Named(ColorName::Cyan)),
+        "white" => Some(Color::Named(ColorName::White)),
+        "bright_black" => Some(Color::Named(ColorName::BrightBlack)),
+        "bright_red" => Some(Color::Named(ColorName::BrightRed)),
+        "bright_green" => Some(Color::Named(ColorName::Green)),
+        "bright_yellow" => Some(Color::Named(ColorName::BrightYellow)),
+        "bright_blue" => Some(Color::Named(ColorName::BrightBlue)),
+        "bright_magenta" => Some(Color::Named(ColorName::BrightMagenta)),
+        "bright_cyan" => Some(Color::Named(ColorName::BrightCyan)),
+        "bright_white" => Some(Color::Named(ColorName::BrightWhite)),
         _ => None,
     }
 }
 
-/// Retourne le chemin de la config globale
-pub fn get_global_config_path() -> Option<PathBuf> {
+/// Retourne le chemin du dossier de config globale
+pub fn get_global_config_dir() -> Option<PathBuf> {
     dirs::config_dir().map(|mut path| {
         path.push("mcp-log-agent");
+        path
+    })
+}
+
+/// Retourne le chemin de la config globale
+pub fn get_global_config_path() -> Option<PathBuf> {
+    get_global_config_dir().map(|mut path| {
         path.push("config.toml");
         path
     })
@@ -187,7 +249,7 @@ pub fn get_local_config_path() -> PathBuf {
 /// Crée une config par défaut dans un fichier avec des commentaires explicatifs ligne par ligne
 pub fn create_default_config(path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     // Au lieu d'utiliser toml::to_string, on construit manuellement avec des commentaires détaillés
-    let commented_toml = r#"# MCP Log Agent Configuration File
+    let commented_toml = r###"# MCP Log Agent Configuration File
 # Configuration priority (highest to lowest):
 #   1. CLI arguments
 #   2. Environment variables (MCP_LOG_*)
@@ -214,8 +276,6 @@ default_project = "default"
 # This allows you to simply run "mcp-log-agent run" without arguments
 # Default: none
 # Example: default_command = ["npm", "start"]
-# Example: default_command = ["bun", "dev"]
-# Example: default_command = ["cargo", "run", "--release"]
 # Uncomment and modify to use:
 # default_command = ["npm", "start"]
 
@@ -253,8 +313,6 @@ retry_attempts = 3
 #   mcp-log-agent run --cmd build       # Runs the "build" command
 #   mcp-log-agent run -w --cmd test     # Runs "test" in TUI mode
 #
-# Note: If you don't use --cmd flag, it will use default_command (if set)
-#
 # Uncomment and customize examples below:
 
 [agent.commands]
@@ -262,8 +320,6 @@ retry_attempts = 3
 # build = ["npm", "run", "build"]
 # test = ["npm", "test"]
 # start = ["npm", "start"]
-# serve = ["python", "-m", "http.server", "8000"]
-# watch = ["cargo", "watch", "-x", "run"]
 
 # ============================================================================
 # [output] - Output formatting and display settings
@@ -295,61 +351,27 @@ show_timestamps = false
 show_pid = false
 
 # ============================================================================
-# [colors] - Color customization for different log levels
+# Theme Configuration
 # ============================================================================
-# Available colors: black, red, green, yellow, blue, magenta, cyan, white,
-#                   bright_black, bright_red, bright_green, bright_yellow,
-#                   bright_blue, bright_magenta, bright_cyan, bright_white
-# Available styles: bold, italic, underline, dimmed, blink, reverse, strikethrough
+# theme: Name of the color theme to use (loaded from ~/.config/mcp-log-agent/themes/)
+# Default: "default"
+# Available themes: default, dracula, nord, monokai, solarized-dark, minimal
 #
-# Quick start with predefined schemes:
-#   mcp-log-agent config colors list             # Show available schemes
-#   mcp-log-agent config colors set <name>       # Apply a scheme
-#   mcp-log-agent config colors preview <name>   # Preview before applying
-# Available schemes: default, solarized-dark, high-contrast, minimal, monochrome
+# To create a custom theme:
+#   1. Go to ~/.config/mcp-log-agent/themes/
+#   2. Copy an existing theme file (e.g., default.toml)
+#   3. Modify colors to your liking
+#   4. Set theme = "your-theme-name" below
+#
+# To list available themes:
+#   ls ~/.config/mcp-log-agent/themes/
+#
+# Theme files control:
+#   - Log level colors (error, warn, info, debug)
+#   - TUI interface colors (header, status bar, borders, etc.)
+#   - System message colors
 
-# Error level colors (for ERROR logs and stderr)
-[colors.error]
-# fg: Foreground (text) color for error messages
-fg = "red"
-# style: Text style modifiers (can combine multiple: ["bold", "italic"])
-style = ["bold"]
-
-# Warning level colors (for WARN logs)
-[colors.warn]
-fg = "yellow"
-style = []
-
-# Debug level colors (for DEBUG logs)
-[colors.debug]
-fg = "blue"
-style = []
-
-# Info level colors (for INFO logs and stdout)
-[colors.info]
-fg = "white"
-style = []
-
-# System message colors (agent's own output, not from captured process)
-[colors.system.success]
-# Success messages like "✓ Process started"
-fg = "green"
-style = ["bold"]
-
-[colors.system.error]
-# Error messages from the agent itself
-fg = "red"
-style = ["bold"]
-
-[colors.system.info]
-# Informational messages like connection status
-fg = "cyan"
-style = []
-
-[colors.system.dim]
-# Secondary/less important information
-fg = "bright_black"
-style = []
+theme = "default"
 
 # ============================================================================
 # [filters] - Log filtering and level control
@@ -401,7 +423,7 @@ tick_rate_ms = 250
 # Default: 100 (10 FPS)
 # Prevents lag with high-frequency log output
 frame_rate_ms = 100
-"#;
+"###;
     
     // Créer le répertoire parent si nécessaire
     if let Some(parent) = path.parent() {

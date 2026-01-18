@@ -27,6 +27,7 @@ toml = "0.9.8"
 dirs = "6.0"
 regex = "1.11"
 arboard = "3.4"
+anyhow = "1.0.100"
 
 [package.metadata.deb]
 maintainer = "Yacine Yaici <yaiciy01@gmail.com>"

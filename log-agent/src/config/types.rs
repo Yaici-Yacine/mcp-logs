@@ -116,12 +116,20 @@ pub struct Config {
     pub agent: AgentConfig,
     #[serde(default)]
     pub output: OutputConfig,
-    #[serde(default)]
+    /// Nom du thème à utiliser (fichier dans ~/.config/mcp-log-agent/themes/)
+    #[serde(default = "default_theme_name")]
+    pub theme: String,
+    /// Couleurs chargées depuis le thème (non sérialisé, rempli au chargement)
+    #[serde(skip)]
     pub colors: ColorConfig,
     #[serde(default)]
     pub filters: FilterConfig,
     #[serde(default)]
     pub performance: PerformanceConfig,
+}
+
+fn default_theme_name() -> String {
+    "default".to_string()
 }
 
 /// Configuration de l'agent
@@ -320,7 +328,8 @@ pub struct TuiConfig {
     pub tick_rate_ms: u64,
     #[serde(default = "default_frame_rate")]
     pub frame_rate_ms: u64,
-    #[serde(default)]
+    /// Couleurs TUI chargées depuis le thème (non sérialisé, rempli au chargement)
+    #[serde(skip)]
     pub colors: TuiColorConfig,
 }
 
@@ -490,6 +499,7 @@ impl Default for Config {
         Self {
             agent: AgentConfig::default(),
             output: OutputConfig::default(),
+            theme: default_theme_name(),
             colors: ColorConfig::default(),
             filters: FilterConfig::default(),
             performance: PerformanceConfig::default(),
