@@ -1,6 +1,6 @@
 {
   "name": "mcp-logs",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Real-time log capture MCP server for development projects",
   "type": "module",
   "bin": {

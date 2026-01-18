@@ -1,8 +1,9 @@
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
+import { createInterface } from 'readline';
 import { generateConfigWithComments, generateMinimalConfig } from '../config/generator.js';
-import { loadConfig } from '../config/loader.js';
+import { loadConfig, isGitRepository, isConfigInGitignore, addToGitignore } from '../config/loader.js';
 import type { Config } from '../config/types.js';
 
 function getGlobalConfigPath(): string {
@@ -13,9 +14,80 @@ function getLocalConfigPath(): string {
   return '.mcp-logs.json';
 }
 
-function initConfig(args: string[]) {
+/**
+ * Prompt user for yes/no answer
+ */
+function promptYesNo(question: string, defaultYes: boolean = true): Promise<boolean> {
+  return new Promise((resolve) => {
+    const rl = createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    const defaultHint = defaultYes ? '[Y/n]' : '[y/N]';
+    rl.question(`${question} ${defaultHint} `, (answer) => {
+      rl.close();
+      
+      const normalized = answer.trim().toLowerCase();
+      if (normalized === '') {
+        resolve(defaultYes);
+      } else {
+        resolve(normalized === 'y' || normalized === 'yes');
+      }
+    });
+  });
+}
+
+/**
+ * Handle .gitignore management for local config
+ */
+async function handleGitignoreForLocalConfig(noGitignore: boolean, autoYes: boolean): Promise<void> {
+  const configFilename = getLocalConfigPath();
+  
+  // Si le flag --no-gitignore est présent, on skip complètement
+  if (noGitignore) {
+    return;
+  }
+  
+  // Vérifier si on est dans un dépôt git
+  if (!isGitRepository()) {
+    return;
+  }
+  
+  // Vérifier si le fichier est déjà dans .gitignore
+  if (isConfigInGitignore(configFilename)) {
+    console.log();
+    console.log(`ℹ ${configFilename} is already in .gitignore`);
+    return;
+  }
+  
+  // Si --yes, ajouter automatiquement
+  if (autoYes) {
+    addToGitignore(configFilename);
+    console.log();
+    console.log(`✓ Added ${configFilename} to .gitignore`);
+    return;
+  }
+  
+  // Sinon, demander à l'utilisateur
+  console.log();
+  console.log(`📁 Git repository detected`);
+  
+  const shouldAdd = await promptYesNo(`   Add ${configFilename} to .gitignore?`, true);
+  
+  if (shouldAdd) {
+    addToGitignore(configFilename);
+    console.log(`✓ Added ${configFilename} to .gitignore`);
+  } else {
+    console.log(`ℹ Skipped adding to .gitignore`);
+  }
+}
+
+async function initConfig(args: string[]) {
   const isGlobal = args.includes('--global') || args.includes('-g');
   const isMinimal = args.includes('--minimal') || args.includes('-m');
+  const autoYes = args.includes('--yes') || args.includes('-y');
+  const noGitignore = args.includes('--no-gitignore') || args.includes('-n');
   
   const path = isGlobal ? getGlobalConfigPath() : getLocalConfigPath();
   const content = isMinimal ? generateMinimalConfig() : generateConfigWithComments();
@@ -35,6 +107,11 @@ function initConfig(args: string[]) {
   if (!isMinimal) {
     console.log('💡 Tip: Lines starting with "_" are comments explaining each option');
     console.log('   You can safely edit values without removing comments');
+  }
+  
+  // Gestion du .gitignore pour la config locale uniquement
+  if (!isGlobal) {
+    await handleGitignoreForLocalConfig(noGitignore, autoYes);
   }
 }
 
@@ -220,9 +297,11 @@ function showHelp() {
   console.log('Usage: bun run index.ts config <command> [options]');
   console.log();
   console.log('Commands:');
-  console.log('  init [--global|-g] [--minimal|-m]  Create configuration file');
-  console.log('                                       --global: Create in ~/.config/mcp-logs/');
-  console.log('                                       --minimal: Create without comments');
+  console.log('  init [options]                       Create configuration file');
+  console.log('    --global, -g                       Create in ~/.config/mcp-logs/');
+  console.log('    --minimal, -m                      Create without comments');
+  console.log('    --yes, -y                          Auto-add to .gitignore without prompting');
+  console.log('    --no-gitignore, -n                 Skip .gitignore management');
   console.log('  show                                 Display current merged configuration');
   console.log('  get <key>                            Get specific configuration value');
   console.log('  set <key> <value> [--global|-g]     Set configuration value');
@@ -230,7 +309,9 @@ function showHelp() {
   console.log('  help                                 Show this help message');
   console.log();
   console.log('Examples:');
-  console.log('  bun run index.ts config init               Create local config');
+  console.log('  bun run index.ts config init               Create local config (prompt for .gitignore)');
+  console.log('  bun run index.ts config init --yes         Create and auto-add to .gitignore');
+  console.log('  bun run index.ts config init -n            Create without .gitignore');
   console.log('  bun run index.ts config show               Show merged config');
   console.log('  bun run index.ts config get server.verbose');
   console.log('  bun run index.ts config set server.verbose true');
@@ -249,7 +330,7 @@ function showHelp() {
 export async function runConfigCLI(args: string[]) {
   const command = args[0];
   
-  const commands: Record<string, (args: string[]) => void> = {
+  const commands: Record<string, (args: string[]) => void | Promise<void>> = {
     init: initConfig,
     show: showConfig,
     get: getConfigValue,
@@ -263,5 +344,5 @@ export async function runConfigCLI(args: string[]) {
     process.exit(command ? 1 : 0);
   }
   
-  commands[command](args.slice(1));
+  await commands[command](args.slice(1));
 }

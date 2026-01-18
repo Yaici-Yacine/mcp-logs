@@ -189,9 +189,49 @@ async fn test_connection(message: Option<String>) -> Result<(), Box<dyn std::err
     socket_client.test_connection(message).await
 }
 
+/// Gère l'ajout du fichier de config local au .gitignore
+fn handle_gitignore_for_local_config(no_gitignore: bool, auto_yes: bool) -> Result<(), Box<dyn std::error::Error>> {
+    use owo_colors::OwoColorize;
+    
+    let config_filename = ".mcp-log-agent.toml";
+    
+    // Si --no-gitignore est spécifié, skip
+    if no_gitignore {
+        return Ok(());
+    }
+    
+    // Vérifier si on est dans un repo Git
+    if !config::is_git_repository() {
+        return Ok(());
+    }
+    
+    // Vérifier si le fichier est déjà dans .gitignore
+    if config::is_config_in_gitignore(config_filename)? {
+        println!("{}", "  ℹ Already in .gitignore".bright_black());
+        return Ok(());
+    }
+    
+    // Si --yes est spécifié, ajouter automatiquement
+    if auto_yes {
+        config::add_to_gitignore(config_filename)?;
+        println!("{}", "✓ Added to .gitignore".green());
+        return Ok(());
+    }
+    
+    // Sinon, demander à l'utilisateur
+    if config::prompt_add_to_gitignore(config_filename) {
+        config::add_to_gitignore(config_filename)?;
+        println!("{}", "✓ Added to .gitignore".green());
+    } else {
+        println!("{}", "  Skipped adding to .gitignore".bright_black());
+    }
+    
+    Ok(())
+}
+
 fn handle_config_command(action: ConfigAction) -> Result<(), Box<dyn std::error::Error>> {
     match action {
-        ConfigAction::Init { global, local } => {
+        ConfigAction::Init { global, local, no_gitignore, yes } => {
             if global {
                 if let Some(path) = config::get_global_config_path() {
                     config::create_default_config(&path)?;
@@ -205,12 +245,18 @@ fn handle_config_command(action: ConfigAction) -> Result<(), Box<dyn std::error:
                 config::create_default_config(&path)?;
                 println!("{}", "✓ Created local configuration file".green());
                 println!("  Location: {}", path.display());
+                
+                // Vérifier si c'est un repo Git et proposer d'ajouter au .gitignore
+                handle_gitignore_for_local_config(no_gitignore, yes)?;
             } else {
                 // Par défaut, créer config locale
                 let path = config::get_local_config_path();
                 config::create_default_config(&path)?;
                 println!("{}", "✓ Created local configuration file".green());
                 println!("  Location: {}", path.display());
+                
+                // Vérifier si c'est un repo Git et proposer d'ajouter au .gitignore
+                handle_gitignore_for_local_config(no_gitignore, yes)?;
             }
         }
         ConfigAction::Show { json } => {

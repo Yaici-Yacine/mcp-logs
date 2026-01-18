@@ -61,6 +61,14 @@ pub enum ConfigAction {
         /// Create local configuration
         #[arg(short, long)]
         local: bool,
+        
+        /// Skip .gitignore prompt (don't add to .gitignore)
+        #[arg(short = 'n', long)]
+        no_gitignore: bool,
+        
+        /// Automatically add to .gitignore without prompting
+        #[arg(short = 'y', long)]
+        yes: bool,
     },
     
     /// Show active configuration

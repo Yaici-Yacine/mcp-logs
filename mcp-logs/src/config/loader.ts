@@ -205,3 +205,59 @@ export function hasGlobalConfig(): boolean {
   const path = getGlobalConfigPath();
   return path ? existsSync(path) : false;
 }
+
+/**
+ * Check if current directory is a git repository
+ */
+export function isGitRepository(): boolean {
+  return existsSync('.git');
+}
+
+/**
+ * Check if config file is already in .gitignore
+ */
+export function isConfigInGitignore(configFilename: string): boolean {
+  const gitignorePath = '.gitignore';
+  
+  if (!existsSync(gitignorePath)) {
+    return false;
+  }
+  
+  try {
+    const content = readFileSync(gitignorePath, 'utf-8');
+    const lines = content.split('\n').map(line => line.trim());
+    
+    // Chercher le fichier exact ou un pattern qui le couvre
+    return lines.some(line => {
+      if (line.startsWith('#') || line === '') return false;
+      return line === configFilename || line === `/${configFilename}`;
+    });
+  } catch (error) {
+    console.error(`Error reading .gitignore: ${error}`);
+    return false;
+  }
+}
+
+/**
+ * Add config file to .gitignore
+ */
+export function addToGitignore(configFilename: string): void {
+  const gitignorePath = '.gitignore';
+  let content = '';
+  
+  // Lire le contenu existant si le fichier existe
+  if (existsSync(gitignorePath)) {
+    content = readFileSync(gitignorePath, 'utf-8');
+    
+    // S'assurer qu'il y a une nouvelle ligne à la fin
+    if (!content.endsWith('\n')) {
+      content += '\n';
+    }
+  }
+  
+  // Ajouter notre entrée avec un commentaire
+  content += '\n# mcp-logs local configuration\n';
+  content += `${configFilename}\n`;
+  
+  writeFileSync(gitignorePath, content, 'utf-8');
+}

@@ -578,3 +578,73 @@ fn parse_value_for_field(section: &str, field: &str, value: &str) -> Result<toml
         _ => Ok(toml::Value::String(value.to_string()))
     }
 }
+
+/// Vérifie si le dossier courant est un repo Git
+pub fn is_git_repository() -> bool {
+    PathBuf::from(".git").exists()
+}
+
+/// Vérifie si .gitignore existe
+
+/// Vérifie si le fichier de config est déjà dans .gitignore
+pub fn is_config_in_gitignore(config_filename: &str) -> Result<bool, Box<dyn std::error::Error>> {
+    let gitignore_path = PathBuf::from(".gitignore");
+    
+    if !gitignore_path.exists() {
+        return Ok(false);
+    }
+    
+    let content = fs::read_to_string(&gitignore_path)?;
+    
+    // Vérifier si le fichier est déjà mentionné (ligne exacte ou pattern)
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed == config_filename || trimmed == format!("/{}", config_filename) {
+            return Ok(true);
+        }
+    }
+    
+    Ok(false)
+}
+
+/// Ajoute le fichier de config au .gitignore
+pub fn add_to_gitignore(config_filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let gitignore_path = PathBuf::from(".gitignore");
+    
+    let mut content = if gitignore_path.exists() {
+        fs::read_to_string(&gitignore_path)?
+    } else {
+        String::new()
+    };
+    
+    // Ajouter une nouvelle ligne si le fichier ne se termine pas par un newline
+    if !content.is_empty() && !content.ends_with('\n') {
+        content.push('\n');
+    }
+    
+    // Ajouter un commentaire et le fichier
+    if !content.contains("# mcp-log-agent") {
+        content.push_str("\n# mcp-log-agent local configuration\n");
+    }
+    content.push_str(config_filename);
+    content.push('\n');
+    
+    fs::write(&gitignore_path, content)?;
+    
+    Ok(())
+}
+
+/// Demande à l'utilisateur s'il veut ajouter le fichier au .gitignore
+pub fn prompt_add_to_gitignore(config_filename: &str) -> bool {
+    use std::io::{self, Write};
+    
+    print!("\n📝 Add {} to .gitignore? [Y/n]: ", config_filename);
+    io::stdout().flush().unwrap();
+    
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).unwrap();
+    
+    let input = input.trim().to_lowercase();
+    // Par défaut "yes" si l'utilisateur appuie juste sur Enter
+    input.is_empty() || input == "y" || input == "yes"
+}
