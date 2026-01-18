@@ -101,6 +101,56 @@ impl ThemeManager {
         Ok(themes)
     }
 
+    /// Liste tous les thèmes avec leurs descriptions
+    pub fn list_themes_with_info(&self) -> Result<Vec<(String, Option<String>, Option<String>)>> {
+        let themes = self.list_themes()?;
+        let mut result = Vec::new();
+
+        for theme_name in themes {
+            if let Ok(theme) = self.load_theme(&theme_name) {
+                result.push((theme.name, theme.description, theme.author));
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// Vérifie si un thème existe
+    pub fn theme_exists(&self, theme_name: &str) -> bool {
+        let theme_path = self.themes_dir.join(format!("{}.toml", theme_name));
+        theme_path.exists()
+    }
+
+    /// Crée un nouveau thème en copiant un thème existant
+    pub fn create_from_template(&self, new_name: &str, template_name: &str) -> Result<ThemeConfig> {
+        let template = self.load_theme(template_name)
+            .with_context(|| format!("Template theme '{}' not found", template_name))?;
+
+        let mut new_theme = template;
+        new_theme.name = new_name.to_string();
+        new_theme.description = Some(format!("Custom theme based on {}", template_name));
+        new_theme.author = None;
+
+        Ok(new_theme)
+    }
+
+    /// Sauvegarde un thème
+    pub fn save_theme(&self, theme: &ThemeConfig) -> Result<()> {
+        let theme_path = self.themes_dir.join(format!("{}.toml", theme.name));
+        theme.save_to_file(&theme_path)
+    }
+
+    /// Crée un thème à partir de la configuration actuelle
+    pub fn export_from_config(&self, name: &str, colors: &ColorConfig, tui: &TuiColorConfig, description: Option<String>, author: Option<String>) -> ThemeConfig {
+        ThemeConfig {
+            name: name.to_string(),
+            description,
+            author,
+            colors: colors.clone(),
+            tui: tui.clone(),
+        }
+    }
+
     /// Initialise les thèmes par défaut
     pub fn initialize_default_themes(&self) -> Result<()> {
         // Créer le dossier themes s'il n'existe pas

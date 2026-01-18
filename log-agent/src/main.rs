@@ -8,8 +8,8 @@ mod types;
 
 use capture::ProcessCapture;
 use clap::Parser;
-use cli::{Cli, ColorAction, Commands, ConfigAction};
-use config::{color_schemes, Config};
+use cli::{Cli, Commands, ConfigAction};
+use config::Config;
 use owo_colors::OwoColorize;
 use socket::SocketClient;
 use tokio::sync::mpsc;
@@ -402,75 +402,230 @@ fn handle_config_command(action: ConfigAction) -> Result<(), Box<dyn std::error:
                 println!("{}", "Please specify --global or --local".yellow());
             }
         }
-        ConfigAction::Colors { action } => {
-            handle_color_action(action)?;
+        ConfigAction::Theme { action } => {
+            handle_theme_action(action)?;
         }
     }
     
     Ok(())
 }
 
-fn handle_color_action(action: ColorAction) -> Result<(), Box<dyn std::error::Error>> {
+fn handle_theme_action(action: cli::ThemeAction) -> Result<(), Box<dyn std::error::Error>> {
+    use cli::ThemeAction;
+    use config::themes::ThemeManager;
+    
+    // Créer le gestionnaire de thèmes
+    let config_dir = config::get_global_config_dir()
+        .ok_or("Could not determine global config directory")?;
+    let theme_manager = ThemeManager::new(config_dir);
+    
+    // Initialiser les thèmes par défaut si nécessaire
+    theme_manager.initialize_default_themes()?;
+    
     match action {
-        ColorAction::List => {
-            println!("Available color schemes:");
+        ThemeAction::List => {
+            println!("{}", "Available themes:".bright_cyan().bold());
             println!();
-            for (name, description) in color_schemes::list_schemes() {
-                println!("  {} - {}", name.bright_cyan(), description);
+            
+            match theme_manager.list_themes_with_info() {
+                Ok(themes) => {
+                    if themes.is_empty() {
+                        println!("{}", "  No themes found".yellow());
+                        println!("  Run 'mcp-log-agent config theme create <name>' to create one");
+                    } else {
+                        for (name, description, author) in themes {
+                            print!("  {} ", name.bright_cyan().bold());
+                            if let Some(desc) = description {
+                                print!("- {}", desc);
+                            }
+                            if let Some(auth) = author {
+                                print!(" {}", format!("(by {})", auth).bright_black());
+                            }
+                            println!();
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("{}", format!("✗ Failed to list themes: {}", e).red());
+                }
             }
+            
             println!();
-            println!("To apply a scheme:");
-            println!("  mcp-log-agent config colors set <scheme>");
+            println!("To apply a theme:");
+            println!("  {}", "mcp-log-agent config theme set <name>".bright_black());
         }
-        ColorAction::Set { scheme } => {
-            if let Some(color_config) = color_schemes::get_scheme(&scheme) {
-                let mut config = config::load_config().unwrap_or_default();
-                config.colors = color_config;
-                
-                let path = if config::has_local_config() {
+        
+        ThemeAction::Show { name } => {
+            match theme_manager.load_theme(&name) {
+                Ok(theme) => {
+                    println!("{}", format!("Theme: {}", theme.name).bright_cyan().bold());
+                    if let Some(desc) = &theme.description {
+                        println!("Description: {}", desc);
+                    }
+                    if let Some(author) = &theme.author {
+                        println!("Author: {}", author);
+                    }
+                    println!();
+                    
+                    // Afficher le contenu du thème en TOML
+                    match toml::to_string_pretty(&theme) {
+                        Ok(content) => println!("{}", content),
+                        Err(e) => eprintln!("{}", format!("✗ Failed to serialize theme: {}", e).red()),
+                    }
+                }
+                Err(e) => {
+                    eprintln!("{}", format!("✗ Theme '{}' not found: {}", name, e).red());
+                    eprintln!("  Use 'mcp-log-agent config theme list' to see available themes");
+                }
+            }
+        }
+        
+        ThemeAction::Create { name, from, interactive } => {
+            // Vérifier si le thème existe déjà
+            if theme_manager.theme_exists(&name) {
+                eprintln!("{}", format!("✗ Theme '{}' already exists", name).red());
+                eprintln!("  Choose a different name or delete the existing theme first");
+                return Ok(());
+            }
+            
+            let theme = if let Some(template) = from {
+                // Créer depuis un template
+                match theme_manager.create_from_template(&name, &template) {
+                    Ok(theme) => theme,
+                    Err(e) => {
+                        eprintln!("{}", format!("✗ Failed to create from template: {}", e).red());
+                        return Ok(());
+                    }
+                }
+            } else if interactive {
+                // Mode interactif - pour l'instant, on crée un template basique
+                // TODO: Implémenter le mode interactif avec dialoguer
+                eprintln!("{}", "✗ Interactive mode not yet implemented".red());
+                eprintln!("  Use --from <template> to create from an existing theme");
+                eprintln!("  Example: mcp-log-agent config theme create my-theme --from default");
+                return Ok(());
+            } else {
+                // Créer depuis le thème par défaut
+                match theme_manager.create_from_template(&name, "default") {
+                    Ok(theme) => theme,
+                    Err(e) => {
+                        eprintln!("{}", format!("✗ Failed to create theme: {}", e).red());
+                        return Ok(());
+                    }
+                }
+            };
+            
+            // Sauvegarder le thème
+            match theme_manager.save_theme(&theme) {
+                Ok(_) => {
+                    println!("{}", format!("✓ Created theme '{}'", name).green());
+                    println!("  Location: {}/.config/mcp-log-agent/themes/{}.toml", 
+                        std::env::var("HOME").unwrap_or_default(), name);
+                    println!();
+                    println!("  Edit the theme file to customize colors");
+                    println!("  Apply with: {}", format!("mcp-log-agent config theme set {}", name).bright_black());
+                }
+                Err(e) => {
+                    eprintln!("{}", format!("✗ Failed to save theme: {}", e).red());
+                }
+            }
+        }
+        
+        ThemeAction::Export { name, description, author } => {
+            // Charger la config actuelle
+            let config = config::load_config()?;
+            
+            // Créer le thème depuis la config
+            let theme = theme_manager.export_from_config(
+                &name,
+                &config.colors,
+                &config.performance.tui.colors,
+                description,
+                author,
+            );
+            
+            // Sauvegarder
+            match theme_manager.save_theme(&theme) {
+                Ok(_) => {
+                    println!("{}", format!("✓ Exported current colors as theme '{}'", name).green());
+                    println!("  Location: {}/.config/mcp-log-agent/themes/{}.toml", 
+                        std::env::var("HOME").unwrap_or_default(), name);
+                }
+                Err(e) => {
+                    eprintln!("{}", format!("✗ Failed to export theme: {}", e).red());
+                }
+            }
+        }
+        
+        ThemeAction::Set { name, global } => {
+            // Vérifier que le thème existe
+            if !theme_manager.theme_exists(&name) {
+                eprintln!("{}", format!("✗ Theme '{}' not found", name).red());
+                eprintln!("  Use 'mcp-log-agent config theme list' to see available themes");
+                return Ok(());
+            }
+            
+            // Déterminer quel fichier de config modifier
+            let config_path = if global {
+                config::get_global_config_path().ok_or("Could not determine global config path")?
+            } else {
+                if config::has_local_config() {
                     config::get_local_config_path()
                 } else {
                     config::get_global_config_path().ok_or("Could not determine config path")?
-                };
-                
-                config::save_config(&config, &path)?;
-                println!("{}", format!("✓ Applied color scheme: {}", scheme).green());
+                }
+            };
+            
+            // Charger la config existante
+            let mut config = if config_path.exists() {
+                match config::load_config_from_file(&config_path) {
+                    Ok(c) => c,
+                    Err(_) => config::Config::default(),
+                }
             } else {
-                eprintln!("{}", format!("✗ Unknown color scheme: {}", scheme).red());
-                eprintln!("  Use 'mcp-log-agent config colors list' to see available schemes");
+                config::Config::default()
+            };
+            
+            // Mettre à jour le champ theme
+            config.theme = name.clone();
+            
+            // Sauvegarder
+            match config::save_config(&config, &config_path) {
+                Ok(_) => {
+                    println!("{}", format!("✓ Set theme to '{}'", name).green());
+                    println!("  File: {}", config_path.display());
+                }
+                Err(e) => {
+                    eprintln!("{}", format!("✗ Failed to save config: {}", e).red());
+                }
             }
         }
-        ColorAction::Preview { scheme } => {
-            if let Some(_color_config) = color_schemes::get_scheme(&scheme) {
-                println!("Color Scheme Preview: {}", scheme.bright_cyan());
-                println!();
-                println!("Log Levels:");
-                println!("  {} This is an error message", "ERROR".red().bold());
-                println!("  {} This is a warning message", "WARN".yellow());
-                println!("  {} This is a debug message", "DEBUG".blue());
-                println!("  {} This is an info message", "INFO");
-                println!();
-                println!("System Messages:");
-                println!("  {} Success: Operation completed", "✓".green().bold());
-                println!("  {} Error: Operation failed", "✗".red().bold());
-                println!("  {} Info: Additional information", "ℹ".cyan());
-                println!("    {}", "Dimmed text for secondary info".bright_black());
-            } else {
-                eprintln!("{}", format!("✗ Unknown color scheme: {}", scheme).red());
+        
+        ThemeAction::Preview { name } => {
+            match theme_manager.load_theme(&name) {
+                Ok(theme) => {
+                    println!("{}", format!("Theme Preview: {}", theme.name).bright_cyan().bold());
+                    if let Some(desc) = &theme.description {
+                        println!("{}", desc.bright_black());
+                    }
+                    println!();
+                    
+                    println!("{}", "Log Levels:".bold());
+                    println!("  {} This is an error message", "ERROR".red().bold());
+                    println!("  {} This is a warning message", "WARN ".yellow());
+                    println!("  {} This is an info message", "INFO ".cyan());
+                    println!("  {} This is a debug message", "DEBUG".blue());
+                    println!();
+                    println!("{}", "System Messages:".bold());
+                    println!("  {} Success: Operation completed", "✓".green().bold());
+                    println!("  {} Error: Operation failed", "✗".red().bold());
+                    println!("  {} Info: Additional information", "ℹ".cyan());
+                    println!("    {}", "Dimmed text for secondary info".bright_black());
+                }
+                Err(e) => {
+                    eprintln!("{}", format!("✗ Theme '{}' not found: {}", name, e).red());
+                }
             }
-        }
-        ColorAction::Test => {
-            println!("Testing color output...");
-            println!();
-            println!("{}", "ERROR: This is an error message".red().bold());
-            println!("{}", "WARN: This is a warning message".yellow());
-            println!("{}", "DEBUG: This is a debug message".blue());
-            println!("{}", "INFO: This is an info message");
-            println!();
-            println!("{}", "✓ Success message".green().bold());
-            println!("{}", "✗ Error message".red().bold());
-            println!("{}", "ℹ Info message".cyan());
-            println!("{}", "  Secondary info".bright_black());
         }
     }
     

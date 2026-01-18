@@ -117,30 +117,65 @@ pub enum ConfigAction {
         local: bool,
     },
     
-    /// Manage color schemes
-    Colors {
+    /// Manage themes
+    Theme {
         #[command(subcommand)]
-        action: ColorAction,
+        action: ThemeAction,
     },
 }
 
 #[derive(Subcommand)]
-pub enum ColorAction {
-    /// List available color schemes
+pub enum ThemeAction {
+    /// List available themes
     List,
     
-    /// Set a color scheme
+    /// Show theme details
+    Show {
+        /// Theme name
+        name: String,
+    },
+    
+    /// Create a new theme
+    Create {
+        /// Theme name
+        name: String,
+        
+        /// Copy from existing theme
+        #[arg(short, long)]
+        from: Option<String>,
+        
+        /// Interactive mode (prompt for colors)
+        #[arg(short, long)]
+        interactive: bool,
+    },
+    
+    /// Export current colors as a theme
+    Export {
+        /// Theme name
+        name: String,
+        
+        /// Theme description
+        #[arg(short, long)]
+        description: Option<String>,
+        
+        /// Theme author
+        #[arg(short, long)]
+        author: Option<String>,
+    },
+    
+    /// Set active theme
     Set {
-        /// Scheme name
-        scheme: String,
+        /// Theme name
+        name: String,
+        
+        /// Set globally
+        #[arg(short, long)]
+        global: bool,
     },
     
-    /// Preview a color scheme
+    /// Preview a theme with example output
     Preview {
-        /// Scheme name
-        scheme: String,
+        /// Theme name
+        name: String,
     },
-    
-    /// Test colors with example output
-    Test,
 }

@@ -60,6 +60,13 @@ pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
     Ok(config)
 }
 
+/// Charge la configuration depuis un fichier spécifique (sans fusion ni thème)
+pub fn load_config_from_file(path: &PathBuf) -> Result<Config, Box<dyn std::error::Error>> {
+    let contents = fs::read_to_string(path)?;
+    let config: Config = toml::from_str(&contents)?;
+    Ok(config)
+}
+
 /// Crée un thème de fallback en cas d'erreur
 fn create_fallback_theme() -> ThemeConfig {
     super::themes::ThemeConfig {
