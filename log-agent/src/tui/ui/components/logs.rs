@@ -12,14 +12,34 @@ use ratatui::{
 pub fn draw_logs_panel(frame: &mut Frame, app: &mut App, area: Rect) {
     // Extract colors from config
     let border_color = app.config.performance.tui.colors.border.to_ratatui_color();
-    let header_fg = app.config.performance.tui.colors.header_fg.to_ratatui_color();
+    let header_fg = app
+        .config
+        .performance
+        .tui
+        .colors
+        .header_fg
+        .to_ratatui_color();
 
     // Mettre à jour la hauteur visible
     app.visible_height = (area.height as usize).saturating_sub(2); // -2 pour les bordures
 
     // Titre avec infos de filtrage
-    let title = if app.search_regex.is_some() {
-        format!(" Logs ({}/{}) - Filtered ", app.filtered_count(), app.logs.len())
+    let title = if app.search_regex.is_some()
+        || !matches!(app.level_filter, crate::tui::app::LevelFilter::All)
+    {
+        let mut parts = vec![];
+        if !matches!(app.level_filter, crate::tui::app::LevelFilter::All) {
+            parts.push(format!("[{}]", app.level_filter.label()));
+        }
+        if app.search_regex.is_some() {
+            parts.push("[Search]".to_string());
+        }
+        format!(
+            " Logs ({}/{}) {} ",
+            app.filtered_count(),
+            app.logs.len(),
+            parts.join(" ")
+        )
     } else {
         format!(" Logs ({}) ", app.logs.len())
     };
@@ -69,25 +89,58 @@ pub fn draw_logs_panel(frame: &mut Frame, app: &mut App, area: Rect) {
 }
 
 /// Convertit un log en ListItem avec couleurs et surbrillance de recherche
-fn log_to_list_item(log: &LogLine, is_selected: bool, matches_filter: bool, app: &App) -> ListItem<'static> {
+fn log_to_list_item(
+    log: &LogLine,
+    is_selected: bool,
+    matches_filter: bool,
+    app: &App,
+) -> ListItem<'static> {
     // Extract colors from config
-    let selected_bg = app.config.performance.tui.colors.selected_bg.to_ratatui_color();
-    let search_dimmed = app.config.performance.tui.colors.search_dimmed.to_ratatui_color();
-    
+    let selected_bg = app
+        .config
+        .performance
+        .tui
+        .colors
+        .selected_bg
+        .to_ratatui_color();
+    let search_dimmed = app
+        .config
+        .performance
+        .tui
+        .colors
+        .search_dimmed
+        .to_ratatui_color();
+
     // Get log level colors from config (with fallbacks)
-    let error_color = app.config.colors.error.fg
+    let error_color = app
+        .config
+        .colors
+        .error
+        .fg
         .as_ref()
         .map(|c| c.to_ratatui_color())
         .unwrap_or(Color::Red);
-    let warn_color = app.config.colors.warn.fg
+    let warn_color = app
+        .config
+        .colors
+        .warn
+        .fg
         .as_ref()
         .map(|c| c.to_ratatui_color())
         .unwrap_or(Color::Yellow);
-    let info_color = app.config.colors.info.fg
+    let info_color = app
+        .config
+        .colors
+        .info
+        .fg
         .as_ref()
         .map(|c| c.to_ratatui_color())
         .unwrap_or(Color::Green);
-    let debug_color = app.config.colors.debug.fg
+    let debug_color = app
+        .config
+        .colors
+        .debug
+        .fg
         .as_ref()
         .map(|c| c.to_ratatui_color())
         .unwrap_or(Color::Blue);
@@ -112,15 +165,10 @@ fn log_to_list_item(log: &LogLine, is_selected: bool, matches_filter: bool, app:
         // Message système - use a magenta/purple color
         let system_color = Color::Magenta;
         Line::from(vec![
-            Span::styled(
-                format!("{} ", log.timestamp),
-                base_style.fg(search_dimmed),
-            ),
+            Span::styled(format!("{} ", log.timestamp), base_style.fg(search_dimmed)),
             Span::styled(
                 "SYS ",
-                base_style
-                    .fg(system_color)
-                    .add_modifier(Modifier::BOLD),
+                base_style.fg(system_color).add_modifier(Modifier::BOLD),
             ),
             Span::styled(log.message.clone(), base_style.fg(system_color)),
         ])
@@ -132,15 +180,13 @@ fn log_to_list_item(log: &LogLine, is_selected: bool, matches_filter: bool, app:
             match log.level {
                 LogLevel::Error => error_color,
                 LogLevel::Warn => warn_color,
-                _ => Color::White,
+                LogLevel::Info => info_color,
+                LogLevel::Debug => debug_color,
             }
         };
 
         Line::from(vec![
-            Span::styled(
-                format!("{} ", log.timestamp),
-                base_style.fg(search_dimmed),
-            ),
+            Span::styled(format!("{} ", log.timestamp), base_style.fg(search_dimmed)),
             Span::styled(
                 format!("{} ", level_str),
                 base_style

@@ -96,12 +96,19 @@ impl Supervisor {
             let _ = child.wait().await;
         }
         
-        // Attendre que les tâches de capture se terminent
+        // Attendre que les tâches de capture se terminent AVEC TIMEOUT
+        // Ne pas bloquer plus de 500ms pour la sortie du TUI
         if let Some(task) = self.stdout_task.take() {
-            let _ = task.await;
+            let _ = tokio::time::timeout(
+                std::time::Duration::from_millis(500),
+                task
+            ).await;
         }
         if let Some(task) = self.stderr_task.take() {
-            let _ = task.await;
+            let _ = tokio::time::timeout(
+                std::time::Duration::from_millis(500),
+                task
+            ).await;
         }
         
         self.child = None;

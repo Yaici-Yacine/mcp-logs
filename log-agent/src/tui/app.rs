@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::types::{LogLevel, LogMessage, LogSource};
-use regex::Regex;
+use regex::{Regex, RegexBuilder};
 use std::collections::VecDeque;
 use std::time::Instant;
 
@@ -19,6 +19,51 @@ pub enum InputMode {
     Search,
     Help,
     SavePrompt,
+}
+
+/// Filtre par niveau de log
+#[derive(Debug, Clone, PartialEq)]
+pub enum LevelFilter {
+    All,
+    Error,
+    Warn,
+    Info,
+    Debug,
+}
+
+impl LevelFilter {
+    /// Passe au filtre suivant dans le cycle
+    pub fn next(&self) -> Self {
+        match self {
+            LevelFilter::All => LevelFilter::Error,
+            LevelFilter::Error => LevelFilter::Warn,
+            LevelFilter::Warn => LevelFilter::Info,
+            LevelFilter::Info => LevelFilter::Debug,
+            LevelFilter::Debug => LevelFilter::All,
+        }
+    }
+
+    /// Retourne le label pour l'affichage
+    pub fn label(&self) -> &str {
+        match self {
+            LevelFilter::All => "ALL",
+            LevelFilter::Error => "ERROR",
+            LevelFilter::Warn => "WARN",
+            LevelFilter::Info => "INFO",
+            LevelFilter::Debug => "DEBUG",
+        }
+    }
+
+    /// Vérifie si un niveau de log passe le filtre
+    pub fn matches(&self, level: &LogLevel) -> bool {
+        match self {
+            LevelFilter::All => true,
+            LevelFilter::Error => matches!(level, LogLevel::Error),
+            LevelFilter::Warn => matches!(level, LogLevel::Warn),
+            LevelFilter::Info => matches!(level, LogLevel::Info),
+            LevelFilter::Debug => matches!(level, LogLevel::Debug),
+        }
+    }
 }
 
 /// Ligne de log pour l'affichage
@@ -87,16 +132,15 @@ pub struct App {
     pub visible_height: usize,
     /// Flag pour forcer le redraw
     pub needs_redraw: bool,
-    
+
     // === Nouvelles fonctionnalités ===
     /// Mode d'input actuel
     pub input_mode: InputMode,
     /// Buffer de recherche / saisie
     pub input_buffer: String,
-    /// Regex compilée pour la recherche
     pub search_regex: Option<Regex>,
-    /// Message de recherche (si pas de résultat, erreur regex, etc.)
     pub search_message: Option<String>,
+    pub level_filter: LevelFilter,
     /// Pause de capture (n'ajoute pas de nouveaux logs)
     pub paused: bool,
     /// Buffer de logs en attente si pause
@@ -110,7 +154,7 @@ pub struct App {
 impl App {
     pub fn new(project: String, command: Vec<String>, config: Config) -> Self {
         let max_logs = config.performance.tui.max_logs;
-        
+
         Self {
             logs: VecDeque::with_capacity(max_logs),
             max_logs,
@@ -126,12 +170,13 @@ impl App {
             config,
             visible_height: 20,
             needs_redraw: true,
-            
+
             // Nouvelles fonctionnalités
             input_mode: InputMode::Normal,
             input_buffer: String::new(),
             search_regex: None,
             search_message: None,
+            level_filter: LevelFilter::All,
             paused: false,
             paused_logs: Vec::new(),
             total_logs_received: 0,
@@ -144,40 +189,40 @@ impl App {
     pub fn add_log(&mut self, log: LogMessage) {
         self.total_logs_received += 1;
         self.last_log_time = Some(Instant::now());
-        
+
         // Si pause, stocker dans le buffer
         if self.paused {
             self.paused_logs.push(log);
             return;
         }
-        
+
         self.logs.push_back(log.into());
-        
+
         // Éviction FIFO si trop de logs
         while self.logs.len() > self.max_logs {
             self.logs.pop_front();
         }
-        
+
         // Si auto-scroll, rester en bas
         if self.auto_scroll {
             self.scroll_offset = 0;
         }
-        
+
         self.needs_redraw = true;
     }
 
     /// Ajoute un message système
     pub fn add_system_log(&mut self, message: String) {
         self.logs.push_back(LogLine::system(message));
-        
+
         while self.logs.len() > self.max_logs {
             self.logs.pop_front();
         }
-        
+
         if self.auto_scroll {
             self.scroll_offset = 0;
         }
-        
+
         self.needs_redraw = true;
     }
 
@@ -231,20 +276,20 @@ impl App {
         if row < 1 {
             return;
         }
-        
+
         let log_row = row - 1;
         let total_logs = self.logs.len();
-        
+
         if total_logs == 0 {
             return;
         }
-        
+
         // Calculer l'index du log basé sur le scroll
         // Les logs sont affichés du plus ancien au plus récent
         // scroll_offset = 0 signifie qu'on voit les derniers logs
         let visible_start = total_logs.saturating_sub(self.visible_height + self.scroll_offset);
         let log_index = visible_start + log_row;
-        
+
         if log_index < total_logs {
             self.selected_line = Some(log_index);
             self.auto_scroll = false;
@@ -256,7 +301,7 @@ impl App {
     pub fn uptime(&self) -> String {
         let elapsed = self.start_time.elapsed();
         let secs = elapsed.as_secs();
-        
+
         if secs < 60 {
             format!("{}s", secs)
         } else if secs < 3600 {
@@ -348,9 +393,16 @@ impl App {
             return;
         }
 
-        match Regex::new(&self.input_buffer) {
+        match RegexBuilder::new(&self.input_buffer)
+            .case_insensitive(true)
+            .build()
+        {
             Ok(regex) => {
-                let matches = self.logs.iter().filter(|l| regex.is_match(&l.message)).count();
+                let matches = self
+                    .logs
+                    .iter()
+                    .filter(|l| regex.is_match(&l.message))
+                    .count();
                 self.search_regex = Some(regex);
                 self.search_message = Some(format!("{} matches", matches));
                 self.input_mode = InputMode::Normal;
@@ -365,47 +417,47 @@ impl App {
     /// Sauvegarde les logs dans un fichier
     pub fn save_logs(&mut self) -> Result<(), std::io::Error> {
         use std::io::Write;
-        
+
         let filename = if self.input_buffer.is_empty() {
             format!("{}_logs.txt", self.project)
         } else {
             self.input_buffer.clone()
         };
-        
+
         let mut file = std::fs::File::create(&filename)?;
-        
+
         for log in &self.logs {
             writeln!(file, "[{}] {:?} {}", log.timestamp, log.level, log.message)?;
         }
-        
+
         self.add_system_log(format!("Saved {} logs to {}", self.logs.len(), filename));
         self.input_mode = InputMode::Normal;
         self.input_buffer.clear();
-        
+
         Ok(())
     }
 
     /// Toggle pause
     pub fn toggle_pause(&mut self) {
         self.paused = !self.paused;
-        
+
         if !self.paused && !self.paused_logs.is_empty() {
             // Reprendre: ajouter les logs en attente
             let paused = std::mem::take(&mut self.paused_logs);
             for log in paused {
                 self.logs.push_back(log.into());
             }
-            
+
             // Éviction
             while self.logs.len() > self.max_logs {
                 self.logs.pop_front();
             }
-            
+
             self.add_system_log("Resumed capture".to_string());
         } else if self.paused {
             self.add_system_log("Paused capture".to_string());
         }
-        
+
         self.needs_redraw = true;
     }
 
@@ -414,10 +466,10 @@ impl App {
         if let Some(index) = self.selected_line {
             if let Some(log) = self.logs.get(index) {
                 let text = format!("[{}] {:?} {}", log.timestamp, log.level, log.message);
-                
+
                 let mut clipboard = arboard::Clipboard::new()?;
                 clipboard.set_text(text)?;
-                
+
                 self.add_system_log("Copied to clipboard".to_string());
             }
         } else {
@@ -426,21 +478,34 @@ impl App {
         Ok(())
     }
 
-    /// Retourne les logs visibles filtrés par recherche
+    /// Cycle entre les filtres de niveau
+    pub fn cycle_level_filter(&mut self) {
+        self.level_filter = self.level_filter.next();
+        self.needs_redraw = true;
+    }
+
+    /// Retourne les logs visibles filtrés par recherche ET par niveau
     pub fn filtered_visible_logs(&self) -> Vec<(usize, &LogLine, bool)> {
         let total = self.logs.len();
         let start = total.saturating_sub(self.visible_height + self.scroll_offset);
         let end = total.saturating_sub(self.scroll_offset);
-        
+
         self.logs
             .iter()
             .enumerate()
             .skip(start)
             .take(end - start)
             .map(|(idx, log)| {
-                let matches = self.search_regex.as_ref()
+                // Un log matche si il passe TOUS les filtres
+                let search_match = self
+                    .search_regex
+                    .as_ref()
                     .map(|re| re.is_match(&log.message))
                     .unwrap_or(true);
+
+                let level_match = log.is_system || self.level_filter.matches(&log.level);
+
+                let matches = search_match && level_match;
                 (idx, log, matches)
             })
             .collect()
@@ -448,11 +513,20 @@ impl App {
 
     /// Retourne le nombre de logs filtrés
     pub fn filtered_count(&self) -> usize {
-        if let Some(ref regex) = self.search_regex {
-            self.logs.iter().filter(|l| regex.is_match(&l.message)).count()
-        } else {
-            self.logs.len()
-        }
+        self.logs
+            .iter()
+            .filter(|l| {
+                let search_match = self
+                    .search_regex
+                    .as_ref()
+                    .map(|re| re.is_match(&l.message))
+                    .unwrap_or(true);
+
+                let level_match = l.is_system || self.level_filter.matches(&l.level);
+
+                search_match && level_match
+            })
+            .count()
     }
 
     /// Retourne les logs/sec

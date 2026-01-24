@@ -36,10 +36,93 @@ impl ThemeConfig {
         Ok(theme)
     }
 
-    /// Sauvegarde le thème dans un fichier
+    /// Sauvegarde le thème dans un fichier avec commentaires explicatifs
     pub fn save_to_file(&self, path: &PathBuf) -> Result<()> {
         let content = toml::to_string_pretty(self)
             .context("Failed to serialize theme")?;
+        
+        // Ajouter des commentaires explicatifs au début du fichier
+        let header = format!(
+            "# ============================================================================\n\
+             # {} Theme Configuration\n\
+             # ============================================================================\n\
+             # {}\n\
+             # Author: {}\n\
+             #\n\
+             # This theme controls all colors for both CLI output and TUI interface.\n\
+             #\n\
+             # SUPPORTED COLOR FORMATS:\n\
+             #   1. Named colors: red, bright_cyan, blue, etc.\n\
+             #   2. Hex colors: FF5733 or #FF5733\n\
+             #   3. RGB tuples: 255,87,51\n\
+             #\n\
+             # AVAILABLE NAMED COLORS:\n\
+             #   Basic: black, red, green, yellow, blue, magenta, cyan, white\n\
+             #   Bright: bright_black, bright_red, bright_green, bright_yellow,\n\
+             #           bright_blue, bright_magenta, bright_cyan, bright_white\n\
+             #\n\
+             # AVAILABLE STYLES:\n\
+             #   bold, dimmed, italic, underline, blink, reverse, strikethrough\n\
+             #\n\
+             # ============================================================================\n\n",
+            self.name,
+            self.description.as_deref().unwrap_or("Custom theme"),
+            self.author.as_deref().unwrap_or("User")
+        );
+        
+        let footer = 
+            "\n# ============================================================================\n\
+             # EXPLANATION OF SECTIONS:\n\
+             # ============================================================================\n\
+             #\n\
+             # [colors.error] - Error level logs (e.g., ERROR: Connection failed)\n\
+             #   fg: Foreground color for error messages\n\
+             #   style: Text styling (bold makes errors stand out)\n\
+             #\n\
+             # [colors.warn] - Warning level logs (e.g., WARN: Deprecated API)\n\
+             #   fg: Foreground color for warnings\n\
+             #   style: Text styling\n\
+             #\n\
+             # [colors.info] - Info level logs (e.g., INFO: Server started)\n\
+             #   fg: Foreground color for info messages\n\
+             #   style: Text styling\n\
+             #\n\
+             # [colors.debug] - Debug level logs (e.g., DEBUG: Variable value: 42)\n\
+             #   fg: Foreground color for debug messages\n\
+             #   style: Text styling\n\
+             #\n\
+             # [colors.system.success] - Agent success messages (e.g., Connected)\n\
+             #   fg: Color for successful operations\n\
+             #   style: Usually bold to highlight\n\
+             #\n\
+             # [colors.system.error] - Agent error messages (e.g., Connection failed)\n\
+             #   fg: Color for agent errors\n\
+             #   style: Usually bold to highlight\n\
+             #\n\
+             # [colors.system.info] - Agent info messages\n\
+             #   fg: Color for agent information\n\
+             #   style: Text styling\n\
+             #\n\
+             # [colors.system.dim] - Dimmed/secondary text\n\
+             #   fg: Color for less important text\n\
+             #   style: Usually dimmed to reduce prominence\n\
+             #\n\
+             # [tui] - Terminal User Interface colors (watch mode)\n\
+             #   header_bg: Background color of top bar showing project/command\n\
+             #   header_fg: Text color in header\n\
+             #   status_bg: Background color of bottom status bar\n\
+             #   status_fg: Text color in status bar (stats, counters)\n\
+             #   border: Color of all borders and frames\n\
+             #   selected_bg: Background when a log line is selected\n\
+             #   selected_fg: Text color when a log line is selected\n\
+             #   search_match: Highlight color for search matches\n\
+             #   search_dimmed: Color for non-matching logs during search\n\
+             #   help_bg: Background color of help overlay (press ?)\n\
+             #   help_fg: Text color in help overlay\n\
+             #\n\
+             # ============================================================================\n";
+        
+        let commented_content = format!("{}{}{}", header, content, footer);
         
         // Créer le dossier parent si nécessaire
         if let Some(parent) = path.parent() {
@@ -47,7 +130,7 @@ impl ThemeConfig {
                 .with_context(|| format!("Failed to create theme directory: {}", parent.display()))?;
         }
         
-        fs::write(path, content)
+        fs::write(path, &commented_content)
             .with_context(|| format!("Failed to write theme file: {}", path.display()))?;
         
         Ok(())

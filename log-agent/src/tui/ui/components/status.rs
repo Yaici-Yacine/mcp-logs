@@ -1,5 +1,5 @@
-use crate::tui::app::{App, AppState, InputMode};
 use super::widgets::{ShortcutList, StatusInfoList};
+use crate::tui::app::{App, AppState, InputMode};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
@@ -14,7 +14,7 @@ pub fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
         InputMode::Normal => draw_normal_status(frame, app, area),
         InputMode::Search => draw_search_input(frame, app, area),
         InputMode::SavePrompt => draw_save_input(frame, app, area),
-        InputMode::Help => {}, // Géré par help_overlay
+        InputMode::Help => {} // Géré par help_overlay
     }
 }
 
@@ -22,10 +22,28 @@ pub fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
 fn draw_normal_status(frame: &mut Frame, app: &App, area: Rect) {
     // Récupérer les couleurs de la config
     let border_color = app.config.performance.tui.colors.border.to_ratatui_color();
-    let status_fg = app.config.performance.tui.colors.status_fg.to_ratatui_color();
-    let search_match = app.config.performance.tui.colors.search_match.to_ratatui_color();
-    let search_dimmed = app.config.performance.tui.colors.search_dimmed.to_ratatui_color();
-    
+    let status_fg = app
+        .config
+        .performance
+        .tui
+        .colors
+        .status_fg
+        .to_ratatui_color();
+    let search_match = app
+        .config
+        .performance
+        .tui
+        .colors
+        .search_match
+        .to_ratatui_color();
+    let search_dimmed = app
+        .config
+        .performance
+        .tui
+        .colors
+        .search_dimmed
+        .to_ratatui_color();
+
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(border_color));
@@ -40,16 +58,49 @@ fn draw_normal_status(frame: &mut Frame, app: &App, area: Rect) {
             let scroll_str = if app.auto_scroll {
                 "AUTO".to_string()
             } else {
-                format!("{}/{}", app.logs.len().saturating_sub(app.scroll_offset), app.logs.len())
+                format!(
+                    "{}/{}",
+                    app.logs.len().saturating_sub(app.scroll_offset),
+                    app.logs.len()
+                )
             };
 
             // Ligne 1: infos principales avec builder
+            let filter_label = app.level_filter.label();
+            let filter_text = if matches!(app.level_filter, crate::tui::app::LevelFilter::All) {
+                filter_label.to_string()
+            } else {
+                format!("{}!", filter_label) // Ajouter ! pour indiquer un filtre actif
+            };
+
             let info_spans = StatusInfoList::new()
                 .add(" PID", pid_str, status_fg)
                 .add("Uptime", app.uptime(), status_fg)
+                .add(
+                    "Filter",
+                    filter_text,
+                    if matches!(app.level_filter, crate::tui::app::LevelFilter::All) {
+                        status_fg
+                    } else {
+                        search_match
+                    },
+                )
                 .add("Scroll", scroll_str, search_dimmed)
-                .add("Status", if app.paused { "PAUSED" } else { "LIVE" }, if app.paused { search_match } else { status_fg })
-                .add("Stats", format!("↓{} ↑{} {:.1}/s", app.total_logs_received, app.total_logs_sent, app.logs_per_second()), status_fg)
+                .add(
+                    "Status",
+                    if app.paused { "PAUSED" } else { "LIVE" },
+                    if app.paused { search_match } else { status_fg },
+                )
+                .add(
+                    "Stats",
+                    format!(
+                        "↓{} ↑{} {:.1}/s",
+                        app.total_logs_received,
+                        app.total_logs_sent,
+                        app.logs_per_second()
+                    ),
+                    status_fg,
+                )
                 .to_spans();
 
             let line1 = Line::from(info_spans);
@@ -58,6 +109,7 @@ fn draw_normal_status(frame: &mut Frame, app: &App, area: Rect) {
             let shortcut_spans = ShortcutList::new()
                 .add("r", "Restart")
                 .add("p", "Pause")
+                .add("f", "Filter")
                 .add("/", "Search")
                 .add("s", "Save")
                 .add("y", "Copy")
@@ -86,7 +138,9 @@ fn draw_normal_status(frame: &mut Frame, app: &App, area: Rect) {
                 Span::styled(" │ ", Style::default().fg(search_dimmed)),
                 Span::styled(
                     format!("Auto-quit in {}s...", n),
-                    Style::default().fg(search_match).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(search_match)
+                        .add_modifier(Modifier::BOLD),
                 ),
             ]);
 
@@ -107,16 +161,30 @@ fn draw_normal_status(frame: &mut Frame, app: &App, area: Rect) {
 /// Input de recherche
 fn draw_search_input(frame: &mut Frame, app: &App, area: Rect) {
     // Récupérer les couleurs de la config
-    let search_match = app.config.performance.tui.colors.search_match.to_ratatui_color();
-    let search_dimmed = app.config.performance.tui.colors.search_dimmed.to_ratatui_color();
+    let search_match = app
+        .config
+        .performance
+        .tui
+        .colors
+        .search_match
+        .to_ratatui_color();
+    let search_dimmed = app
+        .config
+        .performance
+        .tui
+        .colors
+        .search_dimmed
+        .to_ratatui_color();
     let help_fg = app.config.performance.tui.colors.help_fg.to_ratatui_color();
-    
+
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(search_match))
         .title(Span::styled(
             " Search (regex) ",
-            Style::default().fg(search_match).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(search_match)
+                .add_modifier(Modifier::BOLD),
         ));
 
     let inner_area = block.inner(area);
@@ -131,7 +199,12 @@ fn draw_search_input(frame: &mut Frame, app: &App, area: Rect) {
         ]),
         // Message ou aide
         Line::from(vec![Span::styled(
-            format!(" {}", app.search_message.as_deref().unwrap_or("Enter to search, Esc to cancel")),
+            format!(
+                " {}",
+                app.search_message
+                    .as_deref()
+                    .unwrap_or("Enter to search, Esc to cancel")
+            ),
             Style::default().fg(search_dimmed),
         )]),
     ];
@@ -142,10 +215,22 @@ fn draw_search_input(frame: &mut Frame, app: &App, area: Rect) {
 /// Input pour sauvegarder
 fn draw_save_input(frame: &mut Frame, app: &App, area: Rect) {
     // Récupérer les couleurs de la config
-    let status_fg = app.config.performance.tui.colors.status_fg.to_ratatui_color();
-    let search_dimmed = app.config.performance.tui.colors.search_dimmed.to_ratatui_color();
+    let status_fg = app
+        .config
+        .performance
+        .tui
+        .colors
+        .status_fg
+        .to_ratatui_color();
+    let search_dimmed = app
+        .config
+        .performance
+        .tui
+        .colors
+        .search_dimmed
+        .to_ratatui_color();
     let help_fg = app.config.performance.tui.colors.help_fg.to_ratatui_color();
-    
+
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(status_fg))

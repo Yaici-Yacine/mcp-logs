@@ -9,6 +9,7 @@ pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
 
     // 1. Charger config globale si elle existe et merger
     let global_config_dir = get_global_config_dir();
+    
     if let Some(global_path) = get_global_config_path()
         && global_path.exists() {
             let contents = fs::read_to_string(&global_path)?;
@@ -255,6 +256,29 @@ pub fn create_default_config(path: &PathBuf) -> Result<(), Box<dyn std::error::E
 #   5. Default values
 
 # ============================================================================
+# Theme Configuration
+# ============================================================================
+# theme: Name of the color theme to use (loaded from ~/.config/mcp-log-agent/themes/)
+# Default: "default"
+# Available themes: default, dracula, nord, monokai, solarized-dark, minimal
+#
+# To create a custom theme:
+#   1. Go to ~/.config/mcp-log-agent/themes/
+#   2. Copy an existing theme file (e.g., default.toml)
+#   3. Modify colors to your liking
+#   4. Set theme = "your-theme-name" below
+#
+# To list available themes:
+#   mcp-log-agent config theme list
+#
+# Theme files control:
+#   - Log level colors (error, warn, info, debug)
+#   - TUI interface colors (header, status bar, borders, etc.)
+#   - System message colors
+
+theme = "default"
+
+# ============================================================================
 # [agent] - Core agent settings
 # ============================================================================
 [agent]
@@ -298,6 +322,13 @@ connection_timeout = 5
 # Default: 3
 # Env var: MCP_LOG_AGENT_RETRY_ATTEMPTS
 retry_attempts = 3
+
+# auto_quit: Automatically quit TUI when the monitored process exits
+# Default: false
+# When true, TUI closes automatically after process terminates
+# When false, TUI stays open to review logs after process ends
+# Env var: MCP_LOG_AGENT_AUTO_QUIT
+auto_quit = false
 
 # ============================================================================
 # [agent.commands] - Predefined commands for quick access
@@ -346,29 +377,6 @@ show_timestamps = false
 # Possible values: true, false
 # Env var: MCP_LOG_OUTPUT_SHOW_PID
 show_pid = false
-
-# ============================================================================
-# Theme Configuration
-# ============================================================================
-# theme: Name of the color theme to use (loaded from ~/.config/mcp-log-agent/themes/)
-# Default: "default"
-# Available themes: default, dracula, nord, monokai, solarized-dark, minimal
-#
-# To create a custom theme:
-#   1. Go to ~/.config/mcp-log-agent/themes/
-#   2. Copy an existing theme file (e.g., default.toml)
-#   3. Modify colors to your liking
-#   4. Set theme = "your-theme-name" below
-#
-# To list available themes:
-#   ls ~/.config/mcp-log-agent/themes/
-#
-# Theme files control:
-#   - Log level colors (error, warn, info, debug)
-#   - TUI interface colors (header, status bar, borders, etc.)
-#   - System message colors
-
-theme = "default"
 
 # ============================================================================
 # [filters] - Log filtering and level control

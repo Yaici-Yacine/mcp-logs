@@ -84,13 +84,20 @@ pub async fn run_tui(
         &mut channels,
         frame_duration,
         &mut last_frame,
+        &config,
     )
     .await;
 
-    // Cleanup
-    supervisor.stop().await;
+    // Cleanup with timeout to prevent hanging on quit
+    let _ = tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        supervisor.stop()
+    ).await;
     drop(tx_log);
-    let _ = socket_task.await;
+    let _ = tokio::time::timeout(
+        std::time::Duration::from_millis(500),
+        socket_task
+    ).await;
 
     // Restore terminal
     disable_raw_mode()?;
@@ -119,6 +126,7 @@ async fn run_app_loop(
     channels: &mut Channels,
     frame_duration: std::time::Duration,
     last_frame: &mut std::time::Instant,
+    config: &Config,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     loop {
         // Dessiner l'interface seulement si nécessaire et si assez de temps s'est écoulé
@@ -137,13 +145,16 @@ async fn run_app_loop(
                     Event::Key(key) => {
                         use crossterm::event::KeyCode;
                         
+                        // Handle 'q' globally to quit from any mode
+                        if let KeyCode::Char('q') = key.code {
+                            app.should_quit = true;
+                            continue;
+                        }
+                        
                         // Gestion des inputs selon le mode
                         match app.input_mode {
                             InputMode::Normal => {
                                 match key.code {
-                                    KeyCode::Char('q') => {
-                                        app.should_quit = true;
-                                    }
                                     KeyCode::Char('r') => {
                                         app.add_system_log("Restarting...".to_string());
                                         app.set_state(AppState::Restarting);
@@ -168,6 +179,10 @@ async fn run_app_loop(
                                     KeyCode::Char('c') => {
                                         // Clear logs
                                         app.clear_logs();
+                                    }
+                                    KeyCode::Char('f') => {
+                                        // Cycle level filter
+                                        app.cycle_level_filter();
                                     }
                                     KeyCode::Char('/') => {
                                         // Enter search mode
@@ -279,7 +294,13 @@ async fn run_app_loop(
                                 } else {
                                     app.add_system_log(format!("Process exited with status: {}", status));
                                 }
-                                app.set_state(AppState::WaitingCountdown(5));
+                                
+                                // Auto quit si configuré, sinon attendre 5 secondes
+                                if config.agent.auto_quit {
+                                    app.should_quit = true;
+                                } else {
+                                    app.set_state(AppState::WaitingCountdown(5));
+                                }
                             }
                         
                         // Forcer un redraw périodique pour l'uptime

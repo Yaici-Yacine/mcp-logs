@@ -149,6 +149,8 @@ pub struct AgentConfig {
     pub connection_timeout: u64,
     #[serde(default = "default_retry_attempts")]
     pub retry_attempts: u32,
+    #[serde(default)]
+    pub auto_quit: bool,
 }
 
 fn default_socket_path() -> String {
@@ -233,7 +235,7 @@ pub struct ColorStyle {
 }
 
 /// Couleurs disponibles
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum Color {
     /// Couleur hexadécimale (ex: "#FF5733" ou "FF5733")
@@ -242,6 +244,71 @@ pub enum Color {
     Rgb(u8, u8, u8),
     /// Couleur nommée
     Named(ColorName),
+}
+
+// Custom deserializer pour Color
+impl<'de> Deserialize<'de> for Color {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+        
+        // Essayer de désérialiser comme une string d'abord
+        let value = String::deserialize(deserializer)?;
+        
+        // 1. D'abord vérifier si c'est un nom de couleur valide (snake_case)
+        let color_name_lower = value.to_lowercase().replace("-", "_");
+        let maybe_color_name = match color_name_lower.as_str() {
+            "black" => Some(ColorName::Black),
+            "red" => Some(ColorName::Red),
+            "green" => Some(ColorName::Green),
+            "yellow" => Some(ColorName::Yellow),
+            "blue" => Some(ColorName::Blue),
+            "magenta" => Some(ColorName::Magenta),
+            "cyan" => Some(ColorName::Cyan),
+            "white" => Some(ColorName::White),
+            "bright_black" => Some(ColorName::BrightBlack),
+            "bright_red" => Some(ColorName::BrightRed),
+            "bright_green" => Some(ColorName::BrightGreen),
+            "bright_yellow" => Some(ColorName::BrightYellow),
+            "bright_blue" => Some(ColorName::BrightBlue),
+            "bright_magenta" => Some(ColorName::BrightMagenta),
+            "bright_cyan" => Some(ColorName::BrightCyan),
+            "bright_white" => Some(ColorName::BrightWhite),
+            _ => None,
+        };
+        
+        if let Some(color_name) = maybe_color_name {
+            return Ok(Color::Named(color_name));
+        }
+        
+        // 2. Sinon vérifier si c'est une couleur hex (commence par # ou est 6 caractères hex)
+        let hex_str = value.trim_start_matches('#');
+        if hex_str.len() == 6 && hex_str.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Ok(Color::Hex(value));
+        }
+        
+        // 3. Sinon essayer de parser comme RGB "r,g,b"
+        if value.contains(',') {
+            let parts: Vec<&str> = value.split(',').collect();
+            if parts.len() == 3 {
+                if let (Ok(r), Ok(g), Ok(b)) = (
+                    parts[0].trim().parse::<u8>(),
+                    parts[1].trim().parse::<u8>(),
+                    parts[2].trim().parse::<u8>(),
+                ) {
+                    return Ok(Color::Rgb(r, g, b));
+                }
+            }
+        }
+        
+        // Si rien ne correspond, retourner une erreur
+        Err(D::Error::custom(format!(
+            "Invalid color value '{}'. Expected: color name (e.g. 'bright_cyan'), hex (e.g. '#FF5733'), or RGB (e.g. '255,87,51')",
+            value
+        )))
+    }
 }
 
 /// Noms de couleurs standards
@@ -510,6 +577,7 @@ impl Default for AgentConfig {
             watch: false,
             connection_timeout: 5,
             retry_attempts: 3,
+            auto_quit: false,
         }
     }
 }
