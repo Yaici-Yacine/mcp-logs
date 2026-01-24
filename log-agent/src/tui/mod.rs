@@ -295,11 +295,10 @@ async fn run_app_loop(
                                     app.add_system_log(format!("Process exited with status: {}", status));
                                 }
                                 
-                                // Auto quit si configuré, sinon attendre 5 secondes
+                                // Comportement selon auto_quit
                                 if config.agent.auto_quit {
-                                    app.should_quit = true;
-                                } else {
-                                    app.set_state(AppState::WaitingCountdown(5));
+                                    // auto_quit = true: compte à rebours puis quit
+                                    app.set_state(AppState::WaitingCountdown(config.agent.auto_quit_delay));
                                 }
                             }
                         

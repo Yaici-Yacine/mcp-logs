@@ -325,10 +325,17 @@ retry_attempts = 3
 
 # auto_quit: Automatically quit TUI when the monitored process exits
 # Default: false
-# When true, TUI closes automatically after process terminates
-# When false, TUI stays open to review logs after process ends
+# When false (default), TUI stays open indefinitely to review logs (press 'q' to quit)
+# When true, TUI closes automatically after a delay (see auto_quit_delay)
 # Env var: MCP_LOG_AGENT_AUTO_QUIT
 auto_quit = false
+
+# auto_quit_delay: Delay in seconds before auto-quitting TUI after process exits
+# Default: 5
+# Only applies when auto_quit = true
+# During the countdown, you can press 'q' to quit immediately
+# Env var: MCP_LOG_AGENT_AUTO_QUIT_DELAY
+auto_quit_delay = 5
 
 # ============================================================================
 # [agent.commands] - Predefined commands for quick access

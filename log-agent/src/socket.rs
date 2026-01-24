@@ -66,8 +66,6 @@ impl SocketClient {
         &self,
         message: Option<String>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        println!("Testing connection to {}...", self.socket_path);
-
         let test_log = LogMessage::new(
             "test".to_string(),
             message.unwrap_or_else(|| "Test message from log-agent".to_string()),
@@ -75,16 +73,6 @@ impl SocketClient {
             std::process::id(),
         );
 
-        match self.send_log(&test_log).await {
-            Ok(_) => {
-                println!("✓ Successfully sent test message to MCP server");
-                Ok(())
-            }
-            Err(e) => {
-                eprintln!("✗ Failed to connect to MCP server: {}", e);
-                eprintln!("  Make sure the MCP server is running (bun run mcp-logs/index.ts)");
-                Err(e)
-            }
-        }
+        self.send_log(&test_log).await
     }
 }

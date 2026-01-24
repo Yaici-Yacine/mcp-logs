@@ -155,9 +155,7 @@ async fn run_command(
     let socket_path = config.agent.socket_path.clone();
     let socket_client = SocketClient::new(Some(socket_path));
     let socket_task = tokio::spawn(async move {
-        if let Err(e) = socket_client.start_worker(rx).await {
-            eprintln!("{}", format!("Socket worker error: {}", e).red());
-        }
+        let _ = socket_client.start_worker(rx).await;
     });
 
     // Créer et lancer la capture du processus
@@ -167,15 +165,7 @@ async fn run_command(
     let capture_handle = capture.spawn_with_tx(tx);
 
     // Attendre la fin du processus
-    match capture_handle.await {
-        Ok(Ok(_)) => {},
-        Ok(Err(e)) => {
-            eprintln!("{}", format!("\nProcess error: {}", e).red());
-        }
-        Err(e) => {
-            eprintln!("{}", format!("\nTask error: {}", e).red());
-        }
-    }
+    let _ = capture_handle.await;
 
     // Attendre que le worker socket se termine
     let _ = socket_task.await;

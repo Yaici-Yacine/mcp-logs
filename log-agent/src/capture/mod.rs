@@ -37,18 +37,7 @@ impl ProcessCapture {
         }
 
         let program = &self.command[0];
-        let args = &self.command[1..];
-
-        eprintln!(
-            "{}",
-            format!(
-                "🚀 Starting '{}': {} {}",
-                self.project,
-                program,
-                args.join(" ")
-            )
-            .bright_green()
-        );
+        let args = &self.command[1..]; 
 
         // Spawn le processus enfant
         let mut child = Command::new(program)
@@ -58,7 +47,7 @@ impl ProcessCapture {
             .spawn()?;
 
         let pid = child.id().ok_or("Failed to get PID")?;
-        eprintln!("{}", format!("✓ Process started (PID: {})", pid).bright_black());
+        println!("{}", format!("✓ Process started (PID: {})", pid).bright_black());
 
         let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
         let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
@@ -96,20 +85,11 @@ impl ProcessCapture {
         });
 
         // Attendre que le processus se termine
-        let status = child.wait().await?;
+        let _status = child.wait().await?;
 
         // Attendre que les tâches de capture se terminent
         let _ = stdout_task.await;
         let _ = stderr_task.await;
-
-        if status.success() {
-            eprintln!("{}", "✓ Process exited successfully".to_string().green());
-        } else {
-            eprintln!(
-                "{}",
-                format!("✗ Process exited with status: {}", status).red()
-            );
-        }
 
         Ok(())
     }
@@ -148,8 +128,7 @@ async fn capture_stream<R>(
                     }
                 }
             }
-            Err(e) => {
-                eprintln!("Error reading stream: {}", e);
+            Err(_) => {
                 break;
             }
         }

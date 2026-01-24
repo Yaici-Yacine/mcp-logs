@@ -151,6 +151,8 @@ pub struct AgentConfig {
     pub retry_attempts: u32,
     #[serde(default)]
     pub auto_quit: bool,
+    #[serde(default = "default_auto_quit_delay")]
+    pub auto_quit_delay: u8,
 }
 
 fn default_socket_path() -> String {
@@ -167,6 +169,10 @@ fn default_connection_timeout() -> u64 {
 
 fn default_retry_attempts() -> u32 {
     3
+}
+
+fn default_auto_quit_delay() -> u8 {
+    5
 }
 
 /// Configuration de la sortie
@@ -578,6 +584,7 @@ impl Default for AgentConfig {
             connection_timeout: 5,
             retry_attempts: 3,
             auto_quit: false,
+            auto_quit_delay: 5,
         }
     }
 }
