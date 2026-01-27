@@ -1,5 +1,6 @@
 use crate::tui::app::{App, LogLine};
 use crate::types::LogLevel;
+use ansi_to_tui::IntoText;
 use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -173,7 +174,7 @@ fn log_to_list_item(
             Span::styled(log.message.clone(), base_style.fg(system_color)),
         ])
     } else {
-        // Log normal
+        // Log normal - Parse ANSI codes if present
         let msg_color = if dimmed {
             search_dimmed
         } else {
@@ -185,7 +186,51 @@ fn log_to_list_item(
             }
         };
 
-        Line::from(vec![
+        // Try to parse ANSI codes in the message
+        let message_spans = if log.message.contains('\x1b') || log.message.contains("\\033") {
+            // Replace literal \033 with actual escape character if needed
+            let normalized_msg = log.message.replace("\\033", "\x1b");
+
+            // Parse ANSI codes using ansi-to-tui
+            match normalized_msg.as_bytes().into_text() {
+                Ok(parsed_text) => {
+                    // Convert parsed text to our spans with base style applied
+                    let mut spans = Vec::new();
+                    for line in parsed_text.lines {
+                        for span in line.spans {
+                            // Apply base_style and dimming if needed
+                            let mut style = base_style;
+                            if !dimmed {
+                                // Preserve ANSI colors
+                                if let Some(fg) = span.style.fg {
+                                    style = style.fg(fg);
+                                } else {
+                                    style = style.fg(msg_color);
+                                }
+                                if let Some(bg) = span.style.bg {
+                                    style = style.bg(bg);
+                                }
+                                style = style.add_modifier(span.style.add_modifier);
+                            } else {
+                                // Override with dimmed color
+                                style = style.fg(search_dimmed);
+                            }
+                            spans.push(Span::styled(span.content.to_string(), style));
+                        }
+                    }
+                    spans
+                }
+                Err(_) => {
+                    // If parsing fails, fall back to plain text
+                    vec![Span::styled(log.message.clone(), base_style.fg(msg_color))]
+                }
+            }
+        } else {
+            // No ANSI codes, use plain text
+            vec![Span::styled(log.message.clone(), base_style.fg(msg_color))]
+        };
+
+        let mut line_spans = vec![
             Span::styled(format!("{} ", log.timestamp), base_style.fg(search_dimmed)),
             Span::styled(
                 format!("{} ", level_str),
@@ -197,8 +242,10 @@ fn log_to_list_item(
                         Modifier::BOLD
                     }),
             ),
-            Span::styled(log.message.clone(), base_style.fg(msg_color)),
-        ])
+        ];
+        line_spans.extend(message_spans);
+
+        Line::from(line_spans)
     };
 
     ListItem::new(line)

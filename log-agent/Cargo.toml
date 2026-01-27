@@ -1,6 +1,6 @@
 [package]
 name = "mcp-log-agent"
-version = "1.1.0"
+version = "1.1.1"
 edition = "2024"
 authors = ["yacine yaici <yaiciy01@gmail.com>"]
 description = "Real-time log capture CLI for development projects with MCP integration"
@@ -28,6 +28,7 @@ dirs = "6.0"
 regex = "1.11"
 arboard = "3.4"
 anyhow = "1.0.100"
+ansi-to-tui = "8.0.1"
 
 [package.metadata.deb]
 maintainer = "Yacine Yaici <yaiciy01@gmail.com>"

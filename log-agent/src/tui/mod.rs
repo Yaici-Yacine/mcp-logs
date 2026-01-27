@@ -143,10 +143,22 @@ async fn run_app_loop(
             Some(event) = event_handler.next() => {
                 match event {
                     Event::Key(key) => {
-                        use crossterm::event::KeyCode;
+                        use crossterm::event::{KeyCode, KeyModifiers};
+                        
+                        // Handle Ctrl+C globally (same as 'q')
+                        if let KeyCode::Char('c') = key.code {
+                            if key.modifiers.contains(KeyModifiers::CONTROL) {
+                                // Kill the process before quitting
+                                supervisor.stop().await;
+                                app.should_quit = true;
+                                continue;
+                            }
+                        }
                         
                         // Handle 'q' globally to quit from any mode
                         if let KeyCode::Char('q') = key.code {
+                            // Kill the process before quitting
+                            supervisor.stop().await;
                             app.should_quit = true;
                             continue;
                         }
