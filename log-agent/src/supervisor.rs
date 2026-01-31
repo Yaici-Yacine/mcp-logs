@@ -40,7 +40,20 @@ impl Supervisor {
         let program = &self.command[0];
         let args = &self.command[1..];
 
-        // Spawn le processus
+        // Spawn le processus dans un nouveau groupe de processus
+        // pour pouvoir tuer tous les sous-processus en même temps
+        #[cfg(unix)]
+        let mut child = {
+            use std::os::unix::process::CommandExt;
+            Command::new(program)
+                .args(args)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .process_group(0) // Crée un nouveau groupe de processus
+                .spawn()?
+        };
+        
+        #[cfg(not(unix))]
         let mut child = Command::new(program)
             .args(args)
             .stdout(Stdio::piped())
@@ -89,11 +102,41 @@ impl Supervisor {
         Ok(pid)
     }
 
-    /// Arrête le processus
+    /// Arrête le processus et tous ses sous-processus
     pub async fn stop(&mut self) {
         if let Some(ref mut child) = self.child {
-            let _ = child.kill().await;
-            let _ = child.wait().await;
+            // Sur Unix, essayer d'abord SIGTERM pour un arrêt propre du groupe de processus
+            #[cfg(unix)]
+            {
+                use nix::sys::signal::{self, Signal};
+                use nix::unistd::Pid;
+                
+                if let Some(pid) = child.id() {
+                    let pgid = Pid::from_raw(-(pid as i32)); // PID négatif = groupe de processus
+                    
+                    // Envoyer SIGTERM au groupe de processus entier
+                    let _ = signal::killpg(Pid::from_raw(pid as i32), Signal::SIGTERM);
+                    
+                    // Attendre un peu pour un arrêt propre
+                    let wait_result = tokio::time::timeout(
+                        std::time::Duration::from_secs(2),
+                        child.wait()
+                    ).await;
+                    
+                    // Si le processus ne s'est pas arrêté, forcer avec SIGKILL
+                    if wait_result.is_err() {
+                        let _ = signal::killpg(Pid::from_raw(pid as i32), Signal::SIGKILL);
+                        let _ = child.wait().await;
+                    }
+                }
+            }
+            
+            // Sur Windows, utiliser kill() directement
+            #[cfg(not(unix))]
+            {
+                let _ = child.kill().await;
+                let _ = child.wait().await;
+            }
         }
         
         // Attendre que les tâches de capture se terminent AVEC TIMEOUT

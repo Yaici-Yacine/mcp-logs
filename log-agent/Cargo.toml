@@ -30,6 +30,9 @@ arboard = "3.4"
 anyhow = "1.0.100"
 ansi-to-tui = "8.0.1"
 
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.30", features = ["signal", "process"] }
+
 [package.metadata.deb]
 maintainer = "Yacine Yaici <yaiciy01@gmail.com>"
 copyright = "2025, Yacine Yaici <yaiciy01@gmail.com>"
