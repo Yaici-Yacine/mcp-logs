@@ -112,8 +112,6 @@ impl Supervisor {
                 use nix::unistd::Pid;
                 
                 if let Some(pid) = child.id() {
-                    let pgid = Pid::from_raw(-(pid as i32)); // PID négatif = groupe de processus
-                    
                     // Envoyer SIGTERM au groupe de processus entier
                     let _ = signal::killpg(Pid::from_raw(pid as i32), Signal::SIGTERM);
                     

@@ -218,11 +218,39 @@ async fn run_app_loop(
                                         // Toggle help
                                         app.toggle_help();
                                     }
+                                    KeyCode::Char('m') => {
+                                        // Toggle bookmark on selected line
+                                        app.toggle_bookmark();
+                                    }
+                                    KeyCode::Char('n') => {
+                                        // Next bookmark
+                                        app.next_bookmark();
+                                    }
+                                    KeyCode::Char('N') => {
+                                        // Previous bookmark (Shift+N)
+                                        app.prev_bookmark();
+                                    }
+                                    KeyCode::Char('B') => {
+                                        // Clear all bookmarks (Shift+B)
+                                        app.clear_bookmarks();
+                                    }
                                     KeyCode::Up | KeyCode::Char('k') => {
                                         app.scroll_up(1);
                                     }
                                     KeyCode::Down | KeyCode::Char('j') => {
                                         app.scroll_down(1);
+                                    }
+                                    KeyCode::Left | KeyCode::Char('h') => {
+                                        // Scroll horizontal left
+                                        app.scroll_left(5);
+                                    }
+                                    KeyCode::Right | KeyCode::Char('l') => {
+                                        // Scroll horizontal right
+                                        app.scroll_right(5);
+                                    }
+                                    KeyCode::Char('0') => {
+                                        // Reset horizontal scroll (go to start of line)
+                                        app.reset_horizontal_scroll();
                                     }
                                     KeyCode::PageUp => {
                                         app.scroll_up(10);
@@ -261,8 +289,23 @@ async fn run_app_loop(
                                 }
                             }
                             InputMode::Help => {
-                                // Any key closes help
-                                app.toggle_help();
+                                // Allow scrolling in help, or close with most keys
+                                match key.code {
+                                    KeyCode::Up | KeyCode::Char('k') => {
+                                        app.scroll_help_up();
+                                    }
+                                    KeyCode::Down | KeyCode::Char('j') => {
+                                        // Max scroll will be calculated in the draw function
+                                        app.scroll_help_down(100); // Large number, will be clamped
+                                    }
+                                    KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => {
+                                        app.toggle_help();
+                                    }
+                                    _ => {
+                                        // Any other key closes help
+                                        app.toggle_help();
+                                    }
+                                }
                             }
                         }
                     }

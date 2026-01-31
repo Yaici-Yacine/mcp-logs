@@ -1,9 +1,9 @@
 use crate::tui::app::App;
 use ratatui::{
     layout::{Alignment, Rect},
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph, Wrap},
+    widgets::{Block, Borders, Paragraph, Wrap},
     Frame,
 };
 
@@ -11,10 +11,27 @@ use ratatui::{
 pub fn draw_help_overlay(frame: &mut Frame, app: &App) {
     // Extract colors from config
     let border_color = app.config.performance.tui.colors.border.to_ratatui_color();
-    let help_bg = app.config.performance.tui.colors.help_bg.to_ratatui_color();
-    let search_match = app.config.performance.tui.colors.search_match.to_ratatui_color();
-    let search_dimmed = app.config.performance.tui.colors.search_dimmed.to_ratatui_color();
-    let status_fg = app.config.performance.tui.colors.status_fg.to_ratatui_color();
+    let search_match = app
+        .config
+        .performance
+        .tui
+        .colors
+        .search_match
+        .to_ratatui_color();
+    let search_dimmed = app
+        .config
+        .performance
+        .tui
+        .colors
+        .search_dimmed
+        .to_ratatui_color();
+    let status_fg = app
+        .config
+        .performance
+        .tui
+        .colors
+        .status_fg
+        .to_ratatui_color();
 
     // Calculer la taille du popup (80% de la largeur, 90% de la hauteur)
     let area = frame.area();
@@ -28,28 +45,33 @@ pub fn draw_help_overlay(frame: &mut Frame, app: &App) {
         height: popup_height,
     };
 
-    // Effacer l'arrière-plan
-    frame.render_widget(Clear, popup_area);
+    // Ne pas utiliser Clear pour garder un effet de transparence
+    // Utiliser un fond gris foncé avec une opacité visuelle
+    // (Certains terminaux supportent cela mieux que d'autres)
+    let transparent_bg = Color::Rgb(20, 20, 25); // Gris très foncé, presque noir
 
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(border_color))
         .title(Span::styled(
-            " Help - Keyboard Shortcuts ",
+            " Help - Keyboard Shortcuts (↑/↓ to scroll) ",
             Style::default()
                 .fg(border_color)
                 .add_modifier(Modifier::BOLD),
         ))
-        .style(Style::default().bg(help_bg));
+        .style(Style::default().bg(transparent_bg)); // Utiliser le fond semi-transparent
 
     let inner_area = block.inner(popup_area);
     frame.render_widget(block, popup_area);
 
     // Contenu de l'aide
     let help_text = vec![
-        Line::from(vec![
-            Span::styled("Navigation", Style::default().fg(search_match).add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            "Navigation",
+            Style::default()
+                .fg(search_match)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(""),
         Line::from(vec![
             Span::styled("  ↑/↓, j/k      ", Style::default().fg(status_fg)),
@@ -64,6 +86,14 @@ pub fn draw_help_overlay(frame: &mut Frame, app: &App) {
             Span::raw("Jump to top/bottom"),
         ]),
         Line::from(vec![
+            Span::styled("  ←/→, h/l      ", Style::default().fg(status_fg)),
+            Span::raw("Scroll horizontally (for long lines)"),
+        ]),
+        Line::from(vec![
+            Span::styled("  0             ", Style::default().fg(status_fg)),
+            Span::raw("Reset horizontal scroll (go to line start)"),
+        ]),
+        Line::from(vec![
             Span::styled("  Mouse Scroll  ", Style::default().fg(status_fg)),
             Span::raw("Scroll with mouse wheel"),
         ]),
@@ -72,9 +102,12 @@ pub fn draw_help_overlay(frame: &mut Frame, app: &App) {
             Span::raw("Select a log line"),
         ]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("Process Control", Style::default().fg(search_match).add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            "Process Control",
+            Style::default()
+                .fg(search_match)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(""),
         Line::from(vec![
             Span::styled("  r             ", Style::default().fg(status_fg)),
@@ -85,9 +118,12 @@ pub fn draw_help_overlay(frame: &mut Frame, app: &App) {
             Span::raw("Quit the application"),
         ]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("Log Management", Style::default().fg(search_match).add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            "Log Management",
+            Style::default()
+                .fg(search_match)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(""),
         Line::from(vec![
             Span::styled("  c             ", Style::default().fg(status_fg)),
@@ -110,13 +146,50 @@ pub fn draw_help_overlay(frame: &mut Frame, app: &App) {
             Span::raw("Copy selected line to clipboard"),
         ]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("Search Mode", Style::default().fg(search_match).add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            "Bookmarks",
+            Style::default()
+                .fg(search_match)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(""),
         Line::from(vec![
-            Span::raw("  When in search mode (/):"),
+            Span::styled("  m             ", Style::default().fg(status_fg)),
+            Span::raw("Toggle bookmark on selected line (★)"),
         ]),
+        Line::from(vec![
+            Span::styled("  n             ", Style::default().fg(status_fg)),
+            Span::raw("Jump to next bookmark"),
+        ]),
+        Line::from(vec![
+            Span::styled("  N (Shift+n)   ", Style::default().fg(status_fg)),
+            Span::raw("Jump to previous bookmark"),
+        ]),
+        Line::from(vec![
+            Span::styled("  B (Shift+b)   ", Style::default().fg(status_fg)),
+            Span::raw("Clear all bookmarks"),
+        ]),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            "Filtering",
+            Style::default()
+                .fg(search_match)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  f             ", Style::default().fg(status_fg)),
+            Span::raw("Cycle log level filter (ALL/ERROR/WARN/INFO/DEBUG)"),
+        ]),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            "Search Mode",
+            Style::default()
+                .fg(search_match)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from(""),
+        Line::from(vec![Span::raw("  When in search mode (/):")]),
         Line::from(vec![
             Span::styled("  • ", Style::default().fg(search_dimmed)),
             Span::raw("Type regex pattern to filter logs"),
@@ -134,9 +207,12 @@ pub fn draw_help_overlay(frame: &mut Frame, app: &App) {
             Span::raw("Enter empty search to clear filter"),
         ]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("Status Bar Info", Style::default().fg(search_match).add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            "Status Bar Info",
+            Style::default()
+                .fg(search_match)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(""),
         Line::from(vec![
             Span::styled("  PID           ", Style::default().fg(status_fg)),
@@ -160,12 +236,30 @@ pub fn draw_help_overlay(frame: &mut Frame, app: &App) {
         ]),
         Line::from(""),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("Press any key to close this help", Style::default().fg(search_dimmed).add_modifier(Modifier::ITALIC)),
-        ]),
+        Line::from(vec![Span::styled(
+            "Use ↑/↓ or j/k to scroll • Press any key to close",
+            Style::default()
+                .fg(search_dimmed)
+                .add_modifier(Modifier::ITALIC),
+        )]),
     ];
 
-    let paragraph = Paragraph::new(help_text)
+    // Appliquer le scroll
+    let visible_height = inner_area.height as usize;
+    let total_lines = help_text.len();
+    let max_scroll = total_lines.saturating_sub(visible_height);
+
+    // S'assurer que app.help_scroll ne dépasse pas max_scroll
+    let scroll = app.help_scroll.min(max_scroll);
+
+    // Prendre seulement les lignes visibles
+    let visible_text: Vec<Line> = help_text
+        .into_iter()
+        .skip(scroll)
+        .take(visible_height)
+        .collect();
+
+    let paragraph = Paragraph::new(visible_text)
         .wrap(Wrap { trim: false })
         .alignment(Alignment::Left);
 

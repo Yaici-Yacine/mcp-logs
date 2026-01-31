@@ -59,7 +59,8 @@ pub fn draw_logs_panel(frame: &mut Frame, app: &mut App, area: Rect) {
         .iter()
         .map(|(idx, log, matches)| {
             let is_selected = app.selected_line == Some(*idx);
-            log_to_list_item(log, is_selected, *matches, app)
+            let is_bookmarked = app.bookmarks.contains(idx);
+            log_to_list_item(log, is_selected, is_bookmarked, *matches, app)
         })
         .collect();
 
@@ -93,6 +94,7 @@ pub fn draw_logs_panel(frame: &mut Frame, app: &mut App, area: Rect) {
 fn log_to_list_item(
     log: &LogLine,
     is_selected: bool,
+    is_bookmarked: bool,
     matches_filter: bool,
     app: &App,
 ) -> ListItem<'static> {
@@ -165,14 +167,31 @@ fn log_to_list_item(
     let line = if log.is_system {
         // Message système - use a magenta/purple color
         let system_color = Color::Magenta;
-        Line::from(vec![
+
+        // Bookmark indicator
+        let bookmark_indicator = if is_bookmarked { "★ " } else { "" };
+
+        let mut spans = vec![
+            Span::styled(
+                bookmark_indicator,
+                base_style.fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(format!("{} ", log.timestamp), base_style.fg(search_dimmed)),
             Span::styled(
                 "SYS ",
                 base_style.fg(system_color).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(log.message.clone(), base_style.fg(system_color)),
-        ])
+        ];
+
+        // Apply horizontal scroll to message
+        let message = if app.horizontal_scroll > 0 {
+            log.message.chars().skip(app.horizontal_scroll).collect()
+        } else {
+            log.message.clone()
+        };
+
+        spans.push(Span::styled(message, base_style.fg(system_color)));
+        Line::from(spans)
     } else {
         // Log normal - Parse ANSI codes if present
         let msg_color = if dimmed {
@@ -196,8 +215,26 @@ fn log_to_list_item(
                 Ok(parsed_text) => {
                     // Convert parsed text to our spans with base style applied
                     let mut spans = Vec::new();
+                    let mut char_count = 0;
+
                     for line in parsed_text.lines {
                         for span in line.spans {
+                            // Apply horizontal scroll
+                            let content: String =
+                                if char_count + span.content.len() > app.horizontal_scroll {
+                                    let skip = app.horizontal_scroll.saturating_sub(char_count);
+                                    span.content.chars().skip(skip).collect()
+                                } else {
+                                    char_count += span.content.len();
+                                    continue;
+                                };
+
+                            char_count += span.content.len();
+
+                            if content.is_empty() {
+                                continue;
+                            }
+
                             // Apply base_style and dimming if needed
                             let mut style = base_style;
                             if !dimmed {
@@ -215,22 +252,39 @@ fn log_to_list_item(
                                 // Override with dimmed color
                                 style = style.fg(search_dimmed);
                             }
-                            spans.push(Span::styled(span.content.to_string(), style));
+                            spans.push(Span::styled(content, style));
                         }
                     }
                     spans
                 }
                 Err(_) => {
-                    // If parsing fails, fall back to plain text
-                    vec![Span::styled(log.message.clone(), base_style.fg(msg_color))]
+                    // If parsing fails, fall back to plain text with horizontal scroll
+                    let message: String = if app.horizontal_scroll > 0 {
+                        log.message.chars().skip(app.horizontal_scroll).collect()
+                    } else {
+                        log.message.clone()
+                    };
+                    vec![Span::styled(message, base_style.fg(msg_color))]
                 }
             }
         } else {
-            // No ANSI codes, use plain text
-            vec![Span::styled(log.message.clone(), base_style.fg(msg_color))]
+            // No ANSI codes, use plain text with horizontal scroll
+            let message: String = if app.horizontal_scroll > 0 {
+                log.message.chars().skip(app.horizontal_scroll).collect()
+            } else {
+                log.message.clone()
+            };
+            vec![Span::styled(message, base_style.fg(msg_color))]
         };
 
+        // Bookmark indicator
+        let bookmark_indicator = if is_bookmarked { "★ " } else { "" };
+
         let mut line_spans = vec![
+            Span::styled(
+                bookmark_indicator,
+                base_style.fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            ),
             Span::styled(format!("{} ", log.timestamp), base_style.fg(search_dimmed)),
             Span::styled(
                 format!("{} ", level_str),

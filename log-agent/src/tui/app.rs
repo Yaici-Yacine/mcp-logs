@@ -149,6 +149,18 @@ pub struct App {
     pub total_logs_received: usize,
     pub total_logs_sent: usize,
     pub last_log_time: Option<Instant>,
+
+    // === Scroll horizontal ===
+    /// Offset de scroll horizontal (nombre de caractères à sauter à gauche)
+    pub horizontal_scroll: usize,
+
+    // === Bookmarks ===
+    /// Set des indices de lignes bookmarkées
+    pub bookmarks: std::collections::HashSet<usize>,
+
+    // === Help scroll ===
+    /// Offset de scroll pour le popup d'aide
+    pub help_scroll: usize,
 }
 
 impl App {
@@ -182,6 +194,9 @@ impl App {
             total_logs_received: 0,
             total_logs_sent: 0,
             last_log_time: None,
+            horizontal_scroll: 0,
+            bookmarks: std::collections::HashSet::new(),
+            help_scroll: 0,
         }
     }
 
@@ -358,7 +373,22 @@ impl App {
         } else {
             InputMode::Help
         };
+        self.help_scroll = 0; // Reset scroll when opening help
         self.needs_redraw = true;
+    }
+
+    /// Scroll help up
+    pub fn scroll_help_up(&mut self) {
+        self.help_scroll = self.help_scroll.saturating_sub(1);
+        self.needs_redraw = true;
+    }
+
+    /// Scroll help down
+    pub fn scroll_help_down(&mut self, max_scroll: usize) {
+        if self.help_scroll < max_scroll {
+            self.help_scroll += 1;
+            self.needs_redraw = true;
+        }
     }
 
     /// Quitte le mode input actuel
@@ -542,5 +572,119 @@ impl App {
     /// Incrémente le compteur d'envoi
     pub fn increment_sent(&mut self) {
         self.total_logs_sent += 1;
+    }
+
+    // === Scroll horizontal ===
+
+    /// Scroll vers la droite (afficher plus de caractères à droite)
+    pub fn scroll_right(&mut self, n: usize) {
+        self.horizontal_scroll += n;
+        self.needs_redraw = true;
+    }
+
+    /// Scroll vers la gauche (retour au début de la ligne)
+    pub fn scroll_left(&mut self, n: usize) {
+        self.horizontal_scroll = self.horizontal_scroll.saturating_sub(n);
+        self.needs_redraw = true;
+    }
+
+    /// Reset le scroll horizontal
+    pub fn reset_horizontal_scroll(&mut self) {
+        self.horizontal_scroll = 0;
+        self.needs_redraw = true;
+    }
+
+    // === Bookmarks ===
+
+    /// Toggle bookmark sur la ligne sélectionnée
+    pub fn toggle_bookmark(&mut self) {
+        if let Some(idx) = self.selected_line {
+            if self.bookmarks.contains(&idx) {
+                self.bookmarks.remove(&idx);
+                self.add_system_log("Bookmark removed".to_string());
+            } else {
+                self.bookmarks.insert(idx);
+                self.add_system_log("Bookmark added".to_string());
+            }
+            self.needs_redraw = true;
+        } else {
+            self.add_system_log("No line selected. Click on a line first.".to_string());
+        }
+    }
+
+    /// Va au bookmark suivant
+    pub fn next_bookmark(&mut self) {
+        if self.bookmarks.is_empty() {
+            self.add_system_log("No bookmarks".to_string());
+            return;
+        }
+
+        let current = self.selected_line.unwrap_or(0);
+        let mut bookmarks: Vec<_> = self.bookmarks.iter().copied().collect();
+        bookmarks.sort();
+
+        // Trouver le prochain bookmark après la position actuelle
+        if let Some(&next) = bookmarks.iter().find(|&&idx| idx > current) {
+            self.selected_line = Some(next);
+            // Scroller pour rendre visible
+            self.scroll_to_line(next);
+        } else if let Some(&first) = bookmarks.first() {
+            // Wrap around au premier bookmark
+            self.selected_line = Some(first);
+            self.scroll_to_line(first);
+        }
+
+        self.needs_redraw = true;
+    }
+
+    /// Va au bookmark précédent
+    pub fn prev_bookmark(&mut self) {
+        if self.bookmarks.is_empty() {
+            self.add_system_log("No bookmarks".to_string());
+            return;
+        }
+
+        let current = self.selected_line.unwrap_or(self.logs.len());
+        let mut bookmarks: Vec<_> = self.bookmarks.iter().copied().collect();
+        bookmarks.sort();
+
+        // Trouver le bookmark précédent avant la position actuelle
+        if let Some(&prev) = bookmarks.iter().rev().find(|&&idx| idx < current) {
+            self.selected_line = Some(prev);
+            self.scroll_to_line(prev);
+        } else if let Some(&last) = bookmarks.last() {
+            // Wrap around au dernier bookmark
+            self.selected_line = Some(last);
+            self.scroll_to_line(last);
+        }
+
+        self.needs_redraw = true;
+    }
+
+    /// Clear tous les bookmarks
+    pub fn clear_bookmarks(&mut self) {
+        let count = self.bookmarks.len();
+        self.bookmarks.clear();
+        self.add_system_log(format!("Cleared {} bookmarks", count));
+        self.needs_redraw = true;
+    }
+
+    /// Scroll pour rendre une ligne visible
+    fn scroll_to_line(&mut self, line_idx: usize) {
+        let total = self.logs.len();
+        if line_idx >= total {
+            return;
+        }
+
+        // Calculer où devrait être le scroll pour voir cette ligne
+        // On veut que la ligne soit au milieu de l'écran si possible
+        let target_offset = if line_idx + self.visible_height / 2 < total {
+            total - line_idx - self.visible_height / 2
+        } else {
+            0
+        };
+
+        self.scroll_offset = target_offset;
+        self.auto_scroll = false;
     }
 }
