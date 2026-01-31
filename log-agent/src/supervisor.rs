@@ -44,7 +44,6 @@ impl Supervisor {
         // pour pouvoir tuer tous les sous-processus en même temps
         #[cfg(unix)]
         let mut child = {
-            use std::os::unix::process::CommandExt;
             Command::new(program)
                 .args(args)
                 .stdout(Stdio::piped())
