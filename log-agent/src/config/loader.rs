@@ -1,5 +1,5 @@
+use super::themes::{ThemeConfig, ThemeManager};
 use super::types::Config;
-use super::themes::{ThemeManager, ThemeConfig};
 use std::fs;
 use std::path::PathBuf;
 
@@ -9,13 +9,14 @@ pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
 
     // 1. Charger config globale si elle existe et merger
     let global_config_dir = get_global_config_dir();
-    
+
     if let Some(global_path) = get_global_config_path()
-        && global_path.exists() {
-            let contents = fs::read_to_string(&global_path)?;
-            let global_table: toml::Table = toml::from_str(&contents)?;
-            merge_toml_tables(&mut merged_table, global_table);
-        }
+        && global_path.exists()
+    {
+        let contents = fs::read_to_string(&global_path)?;
+        let global_table: toml::Table = toml::from_str(&contents)?;
+        merge_toml_tables(&mut merged_table, global_table);
+    }
 
     // 2. Charger config locale si elle existe et merger
     let local_path = get_local_config_path();
@@ -26,7 +27,8 @@ pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
     }
 
     // 3. Désérialiser en Config (avec defaults pour les champs manquants)
-    let mut config: Config = toml::Value::Table(merged_table).try_into()
+    let mut config: Config = toml::Value::Table(merged_table)
+        .try_into()
         .unwrap_or_else(|_| Config::default());
 
     // 4. Appliquer variables d'environnement
@@ -35,18 +37,21 @@ pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
     // 5. Charger le thème et appliquer les couleurs
     if let Some(config_dir) = global_config_dir {
         let theme_manager = ThemeManager::new(config_dir.clone());
-        
+
         // Initialiser les thèmes par défaut si nécessaire
         let _ = theme_manager.initialize_default_themes();
-        
+
         // Charger le thème spécifié (ou "default" si erreur)
-        let theme = theme_manager.load_theme(&config.theme)
-            .unwrap_or_else(|_| {
-                eprintln!("Warning: Could not load theme '{}', using default", config.theme);
-                theme_manager.load_theme("default")
-                    .unwrap_or_else(|_| create_fallback_theme())
-            });
-        
+        let theme = theme_manager.load_theme(&config.theme).unwrap_or_else(|_| {
+            eprintln!(
+                "Warning: Could not load theme '{}', using default",
+                config.theme
+            );
+            theme_manager
+                .load_theme("default")
+                .unwrap_or_else(|_| create_fallback_theme())
+        });
+
         // Appliquer les couleurs du thème
         config.colors = theme.colors;
         config.performance.tui.colors = theme.tui;
@@ -112,13 +117,15 @@ fn apply_env_vars(mut config: Config) -> Config {
         config.agent.verbose = val.to_lowercase() == "true";
     }
     if let Ok(val) = std::env::var("MCP_LOG_AGENT_CONNECTION_TIMEOUT")
-        && let Ok(timeout) = val.parse() {
-            config.agent.connection_timeout = timeout;
-        }
+        && let Ok(timeout) = val.parse()
+    {
+        config.agent.connection_timeout = timeout;
+    }
     if let Ok(val) = std::env::var("MCP_LOG_AGENT_RETRY_ATTEMPTS")
-        && let Ok(attempts) = val.parse() {
-            config.agent.retry_attempts = attempts;
-        }
+        && let Ok(attempts) = val.parse()
+    {
+        config.agent.retry_attempts = attempts;
+    }
 
     // Output
     if let Ok(val) = std::env::var("MCP_LOG_AGENT_COLORS") {
@@ -141,13 +148,15 @@ fn apply_env_vars(mut config: Config) -> Config {
 
     // Performance
     if let Ok(val) = std::env::var("MCP_LOG_AGENT_BUFFER_SIZE")
-        && let Ok(size) = val.parse() {
-            config.performance.buffer_size = size;
-        }
+        && let Ok(size) = val.parse()
+    {
+        config.performance.buffer_size = size;
+    }
     if let Ok(val) = std::env::var("MCP_LOG_AGENT_FLUSH_INTERVAL")
-        && let Ok(interval) = val.parse() {
-            config.performance.flush_interval = interval;
-        }
+        && let Ok(interval) = val.parse()
+    {
+        config.performance.flush_interval = interval;
+    }
 
     // Filters
     if let Ok(val) = std::env::var("MCP_LOG_FILTER_MIN_LEVEL") {
@@ -164,21 +173,25 @@ fn apply_env_vars(mut config: Config) -> Config {
     // Colors - Pour les couleurs via env vars, on supporte les couleurs fg principales
     // Format: MCP_LOG_COLOR_ERROR_FG=bright_red, MCP_LOG_COLOR_WARN_FG=yellow, etc.
     if let Ok(val) = std::env::var("MCP_LOG_COLOR_ERROR_FG")
-        && let Some(color) = parse_color(&val) {
-            config.colors.error.fg = Some(color);
-        }
+        && let Some(color) = parse_color(&val)
+    {
+        config.colors.error.fg = Some(color);
+    }
     if let Ok(val) = std::env::var("MCP_LOG_COLOR_WARN_FG")
-        && let Some(color) = parse_color(&val) {
-            config.colors.warn.fg = Some(color);
-        }
+        && let Some(color) = parse_color(&val)
+    {
+        config.colors.warn.fg = Some(color);
+    }
     if let Ok(val) = std::env::var("MCP_LOG_COLOR_INFO_FG")
-        && let Some(color) = parse_color(&val) {
-            config.colors.info.fg = Some(color);
-        }
+        && let Some(color) = parse_color(&val)
+    {
+        config.colors.info.fg = Some(color);
+    }
     if let Ok(val) = std::env::var("MCP_LOG_COLOR_DEBUG_FG")
-        && let Some(color) = parse_color(&val) {
-            config.colors.debug.fg = Some(color);
-        }
+        && let Some(color) = parse_color(&val)
+    {
+        config.colors.debug.fg = Some(color);
+    }
 
     config
 }
@@ -186,21 +199,30 @@ fn apply_env_vars(mut config: Config) -> Config {
 /// Parse une couleur depuis une string
 fn parse_color(s: &str) -> Option<super::types::Color> {
     use super::types::{Color, ColorName};
-    
+
     // Check if it's a hex color
     if s.starts_with('#') || (s.len() == 6 && s.chars().all(|c| c.is_ascii_hexdigit())) {
-        return Some(Color::Hex(if s.starts_with('#') { s.to_string() } else { format!("#{}", s) }));
+        return Some(Color::Hex(if s.starts_with('#') {
+            s.to_string()
+        } else {
+            format!("#{}", s)
+        }));
     }
-    
+
     // Check if it's RGB format (r,g,b)
     if s.contains(',') {
         let parts: Vec<&str> = s.split(',').collect();
         if parts.len() == 3
-            && let (Ok(r), Ok(g), Ok(b)) = (parts[0].trim().parse(), parts[1].trim().parse(), parts[2].trim().parse()) {
-                return Some(Color::Rgb(r, g, b));
-            }
+            && let (Ok(r), Ok(g), Ok(b)) = (
+                parts[0].trim().parse(),
+                parts[1].trim().parse(),
+                parts[2].trim().parse(),
+            )
+        {
+            return Some(Color::Rgb(r, g, b));
+        }
     }
-    
+
     // Named colors
     match s.to_lowercase().as_str() {
         "black" => Some(Color::Named(ColorName::Black)),
@@ -436,12 +458,12 @@ tick_rate_ms = 250
 # Prevents lag with high-frequency log output
 frame_rate_ms = 100
 "###;
-    
+
     // Créer le répertoire parent si nécessaire
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    
+
     fs::write(path, commented_toml)?;
     Ok(())
 }
@@ -449,12 +471,12 @@ frame_rate_ms = 100
 /// Sauvegarde une config dans un fichier
 pub fn save_config(config: &Config, path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     let toml_string = toml::to_string_pretty(config)?;
-    
+
     // Créer le répertoire parent si nécessaire
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    
+
     fs::write(path, toml_string)?;
     Ok(())
 }
@@ -473,121 +495,135 @@ pub fn has_global_config() -> bool {
 
 /// Modifie une valeur spécifique dans un fichier de config TOML
 /// key format: "section.field" (ex: "agent.socket_path", "output.colors")
-pub fn set_config_value(path: &PathBuf, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn set_config_value(
+    path: &PathBuf,
+    key: &str,
+    value: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Lire le fichier TOML existant ou créer un nouveau
     let content = if path.exists() {
         fs::read_to_string(path)?
     } else {
         String::new()
     };
-    
+
     // Parser en toml::Table
     let mut table: toml::Table = if content.is_empty() {
         toml::Table::new()
     } else {
         toml::from_str(&content)?
     };
-    
+
     // Parser la clé "section.field"
     let parts: Vec<&str> = key.split('.').collect();
     if parts.len() != 2 {
         return Err(format!("Invalid key format '{}'. Expected 'section.field'", key).into());
     }
-    
+
     let section = parts[0];
     let field = parts[1];
-    
+
     // Créer la section si elle n'existe pas
     if !table.contains_key(section) {
         table.insert(section.to_string(), toml::Value::Table(toml::Table::new()));
     }
-    
+
     // Récupérer la section (doit être une table)
-    let section_value = table.get_mut(section)
+    let section_value = table
+        .get_mut(section)
         .ok_or(format!("Section '{}' not found", section))?;
-    
-    let section_table = section_value.as_table_mut()
+
+    let section_table = section_value
+        .as_table_mut()
         .ok_or(format!("'{}' is not a section", section))?;
-    
+
     // Parser la valeur selon le type attendu
     let parsed_value = parse_value_for_field(section, field, value)?;
-    
+
     // Insérer la valeur
     section_table.insert(field.to_string(), parsed_value);
-    
+
     // Sauvegarder le fichier
     let toml_string = toml::to_string_pretty(&table)?;
-    
+
     // Créer le répertoire parent si nécessaire
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    
+
     fs::write(path, toml_string)?;
     Ok(())
 }
 
 /// Parse une valeur selon le contexte (section.field)
-fn parse_value_for_field(section: &str, field: &str, value: &str) -> Result<toml::Value, Box<dyn std::error::Error>> {
+fn parse_value_for_field(
+    section: &str,
+    field: &str,
+    value: &str,
+) -> Result<toml::Value, Box<dyn std::error::Error>> {
     // Détecter le type selon le champ
     match (section, field) {
         // Booleans
-        ("agent", "verbose") |
-        ("output", "colors") |
-        ("output", "show_timestamps") |
-        ("output", "show_pid") => {
+        ("agent", "verbose")
+        | ("output", "colors")
+        | ("output", "show_timestamps")
+        | ("output", "show_pid") => {
             let bool_val = value.to_lowercase() == "true";
             Ok(toml::Value::Boolean(bool_val))
         }
-        
+
         // Integers
-        ("agent", "connection_timeout") |
-        ("agent", "retry_attempts") |
-        ("performance", "buffer_size") |
-        ("performance", "flush_interval") => {
-            let int_val: i64 = value.parse()
+        ("agent", "connection_timeout")
+        | ("agent", "retry_attempts")
+        | ("performance", "buffer_size")
+        | ("performance", "flush_interval") => {
+            let int_val: i64 = value
+                .parse()
                 .map_err(|_| format!("'{}' is not a valid integer", value))?;
             Ok(toml::Value::Integer(int_val))
         }
-        
+
         // Enums
-        ("output", "format") => {
-            match value.to_lowercase().as_str() {
-                "colored" | "plain" | "json" => Ok(toml::Value::String(value.to_lowercase())),
-                _ => Err(format!("Invalid format '{}'. Must be: colored, plain, json", value).into())
-            }
-        }
-        
-        ("filters", "min_level") => {
-            match value.to_lowercase().as_str() {
-                "debug" | "info" | "warn" | "error" => Ok(toml::Value::String(value.to_lowercase())),
-                _ => Err(format!("Invalid log level '{}'. Must be: debug, info, warn, error", value).into())
-            }
-        }
-        
+        ("output", "format") => match value.to_lowercase().as_str() {
+            "colored" | "plain" | "json" => Ok(toml::Value::String(value.to_lowercase())),
+            _ => Err(format!("Invalid format '{}'. Must be: colored, plain, json", value).into()),
+        },
+
+        ("filters", "min_level") => match value.to_lowercase().as_str() {
+            "debug" | "info" | "warn" | "error" => Ok(toml::Value::String(value.to_lowercase())),
+            _ => Err(format!(
+                "Invalid log level '{}'. Must be: debug, info, warn, error",
+                value
+            )
+            .into()),
+        },
+
         // Arrays (default_command, ignore_patterns)
-        ("agent", "default_command") |
-        ("filters", "ignore_patterns") => {
+        ("agent", "default_command") | ("filters", "ignore_patterns") => {
             // Parser comme JSON array ou string séparé par des virgules
             if value.starts_with('[') {
                 // JSON array format
-                let array: Vec<String> = serde_json::from_str(value)
-                    .map_err(|_| format!("Invalid array format '{}'. Use JSON array like [\"npm\", \"start\"]", value))?;
-                let toml_array: Vec<toml::Value> = array.into_iter()
-                    .map(toml::Value::String)
-                    .collect();
+                let array: Vec<String> = serde_json::from_str(value).map_err(|_| {
+                    format!(
+                        "Invalid array format '{}'. Use JSON array like [\"npm\", \"start\"]",
+                        value
+                    )
+                })?;
+                let toml_array: Vec<toml::Value> =
+                    array.into_iter().map(toml::Value::String).collect();
                 Ok(toml::Value::Array(toml_array))
             } else {
                 // Comma-separated format
-                let parts: Vec<toml::Value> = value.split(',')
+                let parts: Vec<toml::Value> = value
+                    .split(',')
                     .map(|s| toml::Value::String(s.trim().to_string()))
                     .collect();
                 Ok(toml::Value::Array(parts))
             }
         }
-        
+
         // Default: strings
-        _ => Ok(toml::Value::String(value.to_string()))
+        _ => Ok(toml::Value::String(value.to_string())),
     }
 }
 
@@ -599,13 +635,13 @@ pub fn is_git_repository() -> bool {
 /// Vérifie si le fichier de config est déjà dans .gitignore
 pub fn is_config_in_gitignore(config_filename: &str) -> Result<bool, Box<dyn std::error::Error>> {
     let gitignore_path = PathBuf::from(".gitignore");
-    
+
     if !gitignore_path.exists() {
         return Ok(false);
     }
-    
+
     let content = fs::read_to_string(&gitignore_path)?;
-    
+
     // Vérifier si le fichier est déjà mentionné (ligne exacte ou pattern)
     for line in content.lines() {
         let trimmed = line.trim();
@@ -613,47 +649,47 @@ pub fn is_config_in_gitignore(config_filename: &str) -> Result<bool, Box<dyn std
             return Ok(true);
         }
     }
-    
+
     Ok(false)
 }
 
 /// Ajoute le fichier de config au .gitignore
 pub fn add_to_gitignore(config_filename: &str) -> Result<(), Box<dyn std::error::Error>> {
     let gitignore_path = PathBuf::from(".gitignore");
-    
+
     let mut content = if gitignore_path.exists() {
         fs::read_to_string(&gitignore_path)?
     } else {
         String::new()
     };
-    
+
     // Ajouter une nouvelle ligne si le fichier ne se termine pas par un newline
     if !content.is_empty() && !content.ends_with('\n') {
         content.push('\n');
     }
-    
+
     // Ajouter un commentaire et le fichier
     if !content.contains("# mcp-log-agent") {
         content.push_str("\n# mcp-log-agent local configuration\n");
     }
     content.push_str(config_filename);
     content.push('\n');
-    
+
     fs::write(&gitignore_path, content)?;
-    
+
     Ok(())
 }
 
 /// Demande à l'utilisateur s'il veut ajouter le fichier au .gitignore
 pub fn prompt_add_to_gitignore(config_filename: &str) -> bool {
     use std::io::{self, Write};
-    
+
     print!("\n📝 Add {} to .gitignore? [Y/n]: ", config_filename);
     io::stdout().flush().unwrap();
-    
+
     let mut input = String::new();
     io::stdin().read_line(&mut input).unwrap();
-    
+
     let input = input.trim().to_lowercase();
     // Par défaut "yes" si l'utilisateur appuie juste sur Enter
     input.is_empty() || input == "y" || input == "yes"

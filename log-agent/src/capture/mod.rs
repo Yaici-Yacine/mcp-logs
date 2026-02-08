@@ -14,7 +14,11 @@ pub struct ProcessCapture {
 
 impl ProcessCapture {
     pub fn new(project: String, command: Vec<String>, config: Config) -> Self {
-        Self { project, command, config }
+        Self {
+            project,
+            command,
+            config,
+        }
     }
 
     /// Lance le processus et retourne un handle
@@ -22,22 +26,17 @@ impl ProcessCapture {
         self,
         tx: mpsc::Sender<LogMessage>,
     ) -> tokio::task::JoinHandle<Result<(), String>> {
-        tokio::spawn(async move {
-            self.run(tx).await.map_err(|e| e.to_string())
-        })
+        tokio::spawn(async move { self.run(tx).await.map_err(|e| e.to_string()) })
     }
 
     /// Lance le processus et capture les logs stdout/stderr
-    async fn run(
-        self,
-        tx: mpsc::Sender<LogMessage>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    async fn run(self, tx: mpsc::Sender<LogMessage>) -> Result<(), Box<dyn std::error::Error>> {
         if self.command.is_empty() {
             return Err("No command provided".into());
         }
 
         let program = &self.command[0];
-        let args = &self.command[1..]; 
+        let args = &self.command[1..];
 
         // Spawn le processus enfant
         let mut child = Command::new(program)
@@ -47,7 +46,10 @@ impl ProcessCapture {
             .spawn()?;
 
         let pid = child.id().ok_or("Failed to get PID")?;
-        println!("{}", format!("✓ Process started (PID: {})", pid).bright_black());
+        println!(
+            "{}",
+            format!("✓ Process started (PID: {})", pid).bright_black()
+        );
 
         let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
         let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
@@ -116,8 +118,9 @@ async fn capture_stream<R>(
                 let message = line.trim_end().to_string();
                 if !message.is_empty() {
                     // Crée le message de log
-                    let log = LogMessage::new(project.clone(), message.clone(), source.clone(), pid);
-                    
+                    let log =
+                        LogMessage::new(project.clone(), message.clone(), source.clone(), pid);
+
                     // Affiche dans le terminal avec coloration
                     print_colored_log(&log, &config);
 
@@ -137,15 +140,15 @@ async fn capture_stream<R>(
 
 /// Affiche un log avec coloration selon le niveau et la config
 fn print_colored_log(log: &LogMessage, config: &Config) {
-    use owo_colors::OwoColorize;
     use crate::config::types::Style;
-    
+    use owo_colors::OwoColorize;
+
     // Vérifier si les couleurs sont activées
     if !config.output.colors {
         eprintln!("{}", log.data.message);
         return;
     }
-    
+
     // Obtenir le style de couleur selon le niveau
     let color_style = match log.data.level {
         LogLevel::Error => &config.colors.error,
@@ -153,13 +156,13 @@ fn print_colored_log(log: &LogMessage, config: &Config) {
         LogLevel::Debug => &config.colors.debug,
         LogLevel::Info => &config.colors.info,
     };
-    
+
     let message = &log.data.message;
-    
+
     // Déterminer si on a des styles
     let has_bold = color_style.style.iter().any(|s| matches!(s, Style::Bold));
     let has_italic = color_style.style.iter().any(|s| matches!(s, Style::Italic));
-    
+
     // Appliquer la couleur avec les styles
     match &color_style.fg {
         Some(color) => {

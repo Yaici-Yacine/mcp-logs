@@ -1,10 +1,10 @@
 use crate::tui::app::App;
 use ratatui::{
+    Frame,
     layout::{Alignment, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
-    Frame,
 };
 
 /// Dessine l'overlay d'aide (popup centré)

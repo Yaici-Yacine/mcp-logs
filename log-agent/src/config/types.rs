@@ -1,6 +1,6 @@
+use owo_colors::OwoColorize;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use owo_colors::OwoColorize;
 
 impl Color {
     /// Convertit Color en ratatui::style::Color pour la TUI
@@ -14,9 +14,10 @@ impl Color {
                         u8::from_str_radix(&hex[0..2], 16),
                         u8::from_str_radix(&hex[2..4], 16),
                         u8::from_str_radix(&hex[4..6], 16),
-                    ) {
-                        return ratatui::style::Color::Rgb(r, g, b);
-                    }
+                    )
+                {
+                    return ratatui::style::Color::Rgb(r, g, b);
+                }
                 // Fallback to white if invalid hex
                 ratatui::style::Color::White
             }
@@ -24,7 +25,7 @@ impl Color {
             Color::Named(name) => name.to_ratatui_color(),
         }
     }
-    
+
     /// Applique la couleur à un texte avec owo_colors
     pub fn apply_to_string(&self, text: &str) -> String {
         match self {
@@ -36,9 +37,10 @@ impl Color {
                         u8::from_str_radix(&hex[0..2], 16),
                         u8::from_str_radix(&hex[2..4], 16),
                         u8::from_str_radix(&hex[4..6], 16),
-                    ) {
-                        return text.truecolor(r, g, b).to_string();
-                    }
+                    )
+                {
+                    return text.truecolor(r, g, b).to_string();
+                }
                 text.to_string()
             }
             Color::Rgb(r, g, b) => text.truecolor(*r, *g, *b).to_string(),
@@ -69,7 +71,7 @@ impl ColorName {
             ColorName::BrightWhite => ratatui::style::Color::White,
         }
     }
-    
+
     /// Applique la couleur à un texte avec owo_colors
     pub fn apply_to_string(&self, text: &str) -> String {
         match self {
@@ -202,7 +204,6 @@ pub enum OutputFormat {
     Json,
 }
 
-
 /// Configuration des couleurs
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ColorConfig {
@@ -259,10 +260,10 @@ impl<'de> Deserialize<'de> for Color {
         D: serde::Deserializer<'de>,
     {
         use serde::de::Error;
-        
+
         // Essayer de désérialiser comme une string d'abord
         let value = String::deserialize(deserializer)?;
-        
+
         // 1. D'abord vérifier si c'est un nom de couleur valide (snake_case)
         let color_name_lower = value.to_lowercase().replace("-", "_");
         let maybe_color_name = match color_name_lower.as_str() {
@@ -284,31 +285,31 @@ impl<'de> Deserialize<'de> for Color {
             "bright_white" => Some(ColorName::BrightWhite),
             _ => None,
         };
-        
+
         if let Some(color_name) = maybe_color_name {
             return Ok(Color::Named(color_name));
         }
-        
+
         // 2. Sinon vérifier si c'est une couleur hex (commence par # ou est 6 caractères hex)
         let hex_str = value.trim_start_matches('#');
         if hex_str.len() == 6 && hex_str.chars().all(|c| c.is_ascii_hexdigit()) {
             return Ok(Color::Hex(value));
         }
-        
+
         // 3. Sinon essayer de parser comme RGB "r,g,b"
         if value.contains(',') {
             let parts: Vec<&str> = value.split(',').collect();
-            if parts.len() == 3 {
-                if let (Ok(r), Ok(g), Ok(b)) = (
+            if parts.len() == 3
+                && let (Ok(r), Ok(g), Ok(b)) = (
                     parts[0].trim().parse::<u8>(),
                     parts[1].trim().parse::<u8>(),
                     parts[2].trim().parse::<u8>(),
-                ) {
-                    return Ok(Color::Rgb(r, g, b));
-                }
+                )
+            {
+                return Ok(Color::Rgb(r, g, b));
             }
         }
-        
+
         // Si rien ne correspond, retourner une erreur
         Err(D::Error::custom(format!(
             "Invalid color value '{}'. Expected: color name (e.g. 'bright_cyan'), hex (e.g. '#FF5733'), or RGB (e.g. '255,87,51')",
@@ -372,7 +373,6 @@ pub enum LogLevel {
     Error,
 }
 
-
 /// Configuration des performances
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceConfig {
@@ -430,11 +430,11 @@ fn default_max_logs() -> usize {
 }
 
 fn default_tick_rate() -> u64 {
-    250  // 250ms entre les ticks (countdown)
+    250 // 250ms entre les ticks (countdown)
 }
 
 fn default_frame_rate() -> u64 {
-    100  // 100ms entre les frames (10 FPS pour réduire les lags)
+    100 // 100ms entre les frames (10 FPS pour réduire les lags)
 }
 
 fn default_buffer_size() -> usize {

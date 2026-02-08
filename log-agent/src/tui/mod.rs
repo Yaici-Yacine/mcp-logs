@@ -8,15 +8,16 @@ pub use event::{Event, EventHandler};
 use crate::config::Config;
 use crate::socket::SocketClient;
 use crate::supervisor::Supervisor;
-use crate::types::LogMessage;
+use crate::types::{CommandResponse, LogMessage, RestartCommand};
 
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use ratatui::{backend::CrosstermBackend, Terminal};
+use ratatui::{Terminal, backend::CrosstermBackend};
 use std::io;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 
 /// Lance la TUI avec supervision du processus
@@ -40,14 +41,27 @@ pub async fn run_tui(
 
     // Démarrer le socket worker
     let socket_path = config.agent.socket_path.clone();
-    let socket_client = SocketClient::new(Some(socket_path));
+    let socket_client = Arc::new(SocketClient::new(Some(socket_path)));
     let (tx_socket, rx_socket) = mpsc::channel::<LogMessage>(config.performance.buffer_size);
+    let socket_client_worker = socket_client.clone();
     let socket_task = tokio::spawn(async move {
-        let _ = socket_client.start_worker(rx_socket).await;
+        let _ = socket_client_worker.start_worker(rx_socket).await;
+    });
+
+    // Créer le channel pour les commandes de restart
+    let (restart_tx, restart_rx) = mpsc::channel::<RestartCommand>(10);
+
+    // Démarrer le listener de commandes
+    let socket_client_listener = socket_client.clone();
+    let project_clone = project.clone();
+    tokio::spawn(async move {
+        let _ = socket_client_listener
+            .start_command_listener(project_clone, restart_tx)
+            .await;
     });
 
     // Créer le superviseur
-    let mut supervisor = Supervisor::new(project, command, config.clone());
+    let mut supervisor = Supervisor::new(project.clone(), command, config.clone());
 
     // Démarrer le processus
     match supervisor.start(tx_log.clone()).await {
@@ -64,40 +78,41 @@ pub async fn run_tui(
     // Créer le handler d'événements
     let tick_rate = std::time::Duration::from_millis(config.performance.tui.tick_rate_ms);
     let mut event_handler = EventHandler::new(tick_rate);
-    
+
     // Frame rate limiter
     let frame_duration = std::time::Duration::from_millis(config.performance.tui.frame_rate_ms);
-    let mut last_frame = std::time::Instant::now();
+    let last_frame = std::time::Instant::now();
 
     // Boucle principale
     let mut channels = Channels {
         rx_log,
         tx_log: tx_log.clone(),
         tx_socket,
+        restart_rx,
     };
-    
+
+    let mut ctx = AppContext {
+        socket_client: socket_client.clone(),
+        project: project.clone(),
+        frame_duration,
+        last_frame,
+    };
+
     let result = run_app_loop(
         &mut terminal,
         &mut app,
         &mut supervisor,
         &mut event_handler,
         &mut channels,
-        frame_duration,
-        &mut last_frame,
         &config,
+        &mut ctx,
     )
     .await;
 
     // Cleanup with timeout to prevent hanging on quit
-    let _ = tokio::time::timeout(
-        std::time::Duration::from_secs(1),
-        supervisor.stop()
-    ).await;
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(1), supervisor.stop()).await;
     drop(tx_log);
-    let _ = tokio::time::timeout(
-        std::time::Duration::from_millis(500),
-        socket_task
-    ).await;
+    let _ = tokio::time::timeout(std::time::Duration::from_millis(500), socket_task).await;
 
     // Restore terminal
     disable_raw_mode()?;
@@ -116,6 +131,14 @@ struct Channels {
     rx_log: mpsc::Receiver<LogMessage>,
     tx_log: mpsc::Sender<LogMessage>,
     tx_socket: mpsc::Sender<LogMessage>,
+    restart_rx: mpsc::Receiver<RestartCommand>,
+}
+
+struct AppContext {
+    socket_client: Arc<SocketClient>,
+    project: String,
+    frame_duration: std::time::Duration,
+    last_frame: std::time::Instant,
 }
 
 async fn run_app_loop(
@@ -124,17 +147,16 @@ async fn run_app_loop(
     supervisor: &mut Supervisor,
     event_handler: &mut EventHandler,
     channels: &mut Channels,
-    frame_duration: std::time::Duration,
-    last_frame: &mut std::time::Instant,
     config: &Config,
+    ctx: &mut AppContext,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     loop {
         // Dessiner l'interface seulement si nécessaire et si assez de temps s'est écoulé
         let now = std::time::Instant::now();
-        if app.needs_redraw && now.duration_since(*last_frame) >= frame_duration {
+        if app.needs_redraw && now.duration_since(ctx.last_frame) >= ctx.frame_duration {
             terminal.draw(|f| ui::draw(f, app))?;
             app.needs_redraw = false;
-            *last_frame = now;
+            ctx.last_frame = now;
         }
 
         // Gérer les événements avec select
@@ -144,17 +166,16 @@ async fn run_app_loop(
                 match event {
                     Event::Key(key) => {
                         use crossterm::event::{KeyCode, KeyModifiers};
-                        
+
                         // Handle Ctrl+C globally (same as 'q')
-                        if let KeyCode::Char('c') = key.code {
-                            if key.modifiers.contains(KeyModifiers::CONTROL) {
+                        if let KeyCode::Char('c') = key.code
+                            && key.modifiers.contains(KeyModifiers::CONTROL) {
                                 // Kill the process before quitting
                                 supervisor.stop().await;
                                 app.should_quit = true;
                                 continue;
                             }
-                        }
-                        
+
                         // Handle 'q' globally to quit from any mode
                         if let KeyCode::Char('q') = key.code {
                             // Kill the process before quitting
@@ -162,7 +183,7 @@ async fn run_app_loop(
                             app.should_quit = true;
                             continue;
                         }
-                        
+
                         // Gestion des inputs selon le mode
                         match app.input_mode {
                             InputMode::Normal => {
@@ -170,11 +191,11 @@ async fn run_app_loop(
                                     KeyCode::Char('r') => {
                                         app.add_system_log("Restarting...".to_string());
                                         app.set_state(AppState::Restarting);
-                                        
+
                                         // Forcer le redraw immédiatement pour montrer "Restarting..."
                                         terminal.draw(|f| ui::draw(f, app))?;
-                                        *last_frame = std::time::Instant::now();
-                                        
+                                        ctx.last_frame = std::time::Instant::now();
+
                                         match supervisor.restart(channels.tx_log.clone()).await {
                                             Ok(pid) => {
                                                 app.set_pid(Some(pid));
@@ -339,7 +360,7 @@ async fn run_app_loop(
                                 app.set_state(AppState::WaitingCountdown(n - 1));
                             }
                         }
-                        
+
                         // Vérifier si le processus est terminé
                         if let AppState::Running = app.state
                             && let Some(status) = supervisor.try_wait() {
@@ -349,14 +370,14 @@ async fn run_app_loop(
                                 } else {
                                     app.add_system_log(format!("Process exited with status: {}", status));
                                 }
-                                
+
                                 // Comportement selon auto_quit
                                 if config.agent.auto_quit {
                                     // auto_quit = true: compte à rebours puis quit
                                     app.set_state(AppState::WaitingCountdown(config.agent.auto_quit_delay));
                                 }
                             }
-                        
+
                         // Forcer un redraw périodique pour l'uptime
                         app.needs_redraw = true;
                     }
@@ -366,15 +387,59 @@ async fn run_app_loop(
                     }
                 }
             }
-            
+
             // Nouveau log du processus
             Some(log) = channels.rx_log.recv() => {
                 // Ajouter à l'affichage
                 app.add_log(log.clone());
-                
+
                 // Envoyer au socket
                 if channels.tx_socket.send(log).await.is_ok() {
                     app.increment_sent();
+                }
+            }
+
+            // Commande de restart depuis MCP
+            Some(cmd) = channels.restart_rx.recv() => {
+                if cmd.project == ctx.project {
+                    app.add_system_log("🔄 Restart requested via MCP".to_string());
+                    app.set_state(AppState::Restarting);
+
+                    // Forcer le redraw immédiatement pour montrer "Restarting..."
+                    terminal.draw(|f| ui::draw(f, app))?;
+                    ctx.last_frame = std::time::Instant::now();
+
+                    match supervisor.restart(channels.tx_log.clone()).await {
+                        Ok(pid) => {
+                            app.set_pid(Some(pid));
+                            app.set_state(AppState::Running);
+                            app.reset_start_time();
+                            app.add_system_log(format!("✓ Process restarted via MCP (PID: {})", pid));
+
+                            // Envoyer la réponse au serveur MCP
+                            let response = CommandResponse::success(
+                                cmd.request_id,
+                                cmd.project,
+                                "Process restarted successfully".to_string(),
+                                Some(pid),
+                            );
+                            if let Err(e) = ctx.socket_client.send_command_response(&response).await {
+                                app.add_system_log(format!("Failed to send response to MCP: {}", e));
+                            }
+                        }
+                        Err(e) => {
+                            app.add_system_log(format!("✗ MCP restart failed: {}", e));
+                            app.set_state(AppState::WaitingCountdown(5));
+
+                            // Envoyer l'erreur au serveur MCP
+                            let response = CommandResponse::error(
+                                cmd.request_id,
+                                cmd.project,
+                                e.to_string(),
+                            );
+                            let _ = ctx.socket_client.send_command_response(&response).await;
+                        }
+                    }
                 }
             }
         }

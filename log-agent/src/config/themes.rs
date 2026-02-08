@@ -29,18 +29,17 @@ impl ThemeConfig {
     pub fn load_from_file(path: &PathBuf) -> Result<Self> {
         let content = fs::read_to_string(path)
             .with_context(|| format!("Failed to read theme file: {}", path.display()))?;
-        
+
         let theme: ThemeConfig = toml::from_str(&content)
             .with_context(|| format!("Failed to parse theme file: {}", path.display()))?;
-        
+
         Ok(theme)
     }
 
     /// Sauvegarde le thème dans un fichier avec commentaires explicatifs
     pub fn save_to_file(&self, path: &PathBuf) -> Result<()> {
-        let content = toml::to_string_pretty(self)
-            .context("Failed to serialize theme")?;
-        
+        let content = toml::to_string_pretty(self).context("Failed to serialize theme")?;
+
         // Ajouter des commentaires explicatifs au début du fichier
         let header = format!(
             "# ============================================================================\n\
@@ -69,9 +68,8 @@ impl ThemeConfig {
             self.description.as_deref().unwrap_or("Custom theme"),
             self.author.as_deref().unwrap_or("User")
         );
-        
-        let footer = 
-            "\n# ============================================================================\n\
+
+        let footer = "\n# ============================================================================\n\
              # EXPLANATION OF SECTIONS:\n\
              # ============================================================================\n\
              #\n\
@@ -121,18 +119,19 @@ impl ThemeConfig {
              #   help_fg: Text color in help overlay\n\
              #\n\
              # ============================================================================\n";
-        
+
         let commented_content = format!("{}{}{}", header, content, footer);
-        
+
         // Créer le dossier parent si nécessaire
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("Failed to create theme directory: {}", parent.display()))?;
+            fs::create_dir_all(parent).with_context(|| {
+                format!("Failed to create theme directory: {}", parent.display())
+            })?;
         }
-        
+
         fs::write(path, &commented_content)
             .with_context(|| format!("Failed to write theme file: {}", path.display()))?;
-        
+
         Ok(())
     }
 }
@@ -169,19 +168,24 @@ impl ThemeManager {
         }
 
         let mut themes = Vec::new();
-        
-        for entry in fs::read_dir(&self.themes_dir)
-            .with_context(|| format!("Failed to read themes directory: {}", self.themes_dir.display()))? 
-        {
+
+        for entry in fs::read_dir(&self.themes_dir).with_context(|| {
+            format!(
+                "Failed to read themes directory: {}",
+                self.themes_dir.display()
+            )
+        })? {
             let entry = entry?;
             let path = entry.path();
-            
-            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("toml")
-                && let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
-                    themes.push(name.to_string());
-                }
+
+            if path.is_file()
+                && path.extension().and_then(|s| s.to_str()) == Some("toml")
+                && let Some(name) = path.file_stem().and_then(|s| s.to_str())
+            {
+                themes.push(name.to_string());
+            }
         }
-        
+
         themes.sort();
         Ok(themes)
     }
@@ -208,7 +212,8 @@ impl ThemeManager {
 
     /// Crée un nouveau thème en copiant un thème existant
     pub fn create_from_template(&self, new_name: &str, template_name: &str) -> Result<ThemeConfig> {
-        let template = self.load_theme(template_name)
+        let template = self
+            .load_theme(template_name)
             .with_context(|| format!("Template theme '{}' not found", template_name))?;
 
         let mut new_theme = template;
@@ -226,7 +231,14 @@ impl ThemeManager {
     }
 
     /// Crée un thème à partir de la configuration actuelle
-    pub fn export_from_config(&self, name: &str, colors: &ColorConfig, tui: &TuiColorConfig, description: Option<String>, author: Option<String>) -> ThemeConfig {
+    pub fn export_from_config(
+        &self,
+        name: &str,
+        colors: &ColorConfig,
+        tui: &TuiColorConfig,
+        description: Option<String>,
+        author: Option<String>,
+    ) -> ThemeConfig {
         ThemeConfig {
             name: name.to_string(),
             description,
@@ -240,8 +252,12 @@ impl ThemeManager {
     pub fn initialize_default_themes(&self) -> Result<()> {
         // Créer le dossier themes s'il n'existe pas
         if !self.themes_dir.exists() {
-            fs::create_dir_all(&self.themes_dir)
-                .with_context(|| format!("Failed to create themes directory: {}", self.themes_dir.display()))?;
+            fs::create_dir_all(&self.themes_dir).with_context(|| {
+                format!(
+                    "Failed to create themes directory: {}",
+                    self.themes_dir.display()
+                )
+            })?;
         }
 
         // Liste des thèmes par défaut à créer
@@ -256,7 +272,7 @@ impl ThemeManager {
 
         for (name, theme) in default_themes {
             let theme_path = self.themes_dir.join(format!("{}.toml", name));
-            
+
             // Ne pas écraser les thèmes existants
             if !theme_path.exists() {
                 theme.save_to_file(&theme_path)?;

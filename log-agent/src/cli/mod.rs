@@ -57,66 +57,66 @@ pub enum ConfigAction {
         /// Create global configuration
         #[arg(short, long)]
         global: bool,
-        
+
         /// Create local configuration
         #[arg(short, long)]
         local: bool,
-        
+
         /// Skip .gitignore prompt (don't add to .gitignore)
         #[arg(short = 'n', long)]
         no_gitignore: bool,
-        
+
         /// Automatically add to .gitignore without prompting
         #[arg(short = 'y', long)]
         yes: bool,
     },
-    
+
     /// Show active configuration
     Show {
         /// Output in JSON format
         #[arg(long)]
         json: bool,
     },
-    
+
     /// Get a configuration value
     Get {
         /// Configuration key (e.g., "agent.socket_path")
         key: String,
     },
-    
+
     /// Set a configuration value
     Set {
         /// Target global configuration
         #[arg(short, long)]
         global: bool,
-        
+
         /// Configuration key
         key: String,
-        
+
         /// Configuration value
         value: String,
     },
-    
+
     /// List all configuration keys
     List,
-    
+
     /// Validate configuration files
     Validate,
-    
+
     /// Detect configuration sources
     Detect,
-    
+
     /// Reset configuration to defaults
     Reset {
         /// Reset global configuration
         #[arg(short, long)]
         global: bool,
-        
+
         /// Reset local configuration
         #[arg(short, long)]
         local: bool,
     },
-    
+
     /// Manage themes
     Theme {
         #[command(subcommand)]
@@ -128,51 +128,51 @@ pub enum ConfigAction {
 pub enum ThemeAction {
     /// List available themes
     List,
-    
+
     /// Show theme details
     Show {
         /// Theme name
         name: String,
     },
-    
+
     /// Create a new theme
     Create {
         /// Theme name
         name: String,
-        
+
         /// Copy from existing theme
         #[arg(short, long)]
         from: Option<String>,
-        
+
         /// Interactive mode (prompt for colors)
         #[arg(short, long)]
         interactive: bool,
     },
-    
+
     /// Export current colors as a theme
     Export {
         /// Theme name
         name: String,
-        
+
         /// Theme description
         #[arg(short, long)]
         description: Option<String>,
-        
+
         /// Theme author
         #[arg(short, long)]
         author: Option<String>,
     },
-    
+
     /// Set active theme
     Set {
         /// Theme name
         name: String,
-        
+
         /// Set globally
         #[arg(short, long)]
         global: bool,
     },
-    
+
     /// Preview a theme with example output
     Preview {
         /// Theme name

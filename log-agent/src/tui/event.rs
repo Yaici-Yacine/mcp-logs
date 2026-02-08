@@ -1,4 +1,4 @@
-use crossterm::event::{self, KeyEvent, MouseEvent, Event as CrosstermEvent};
+use crossterm::event::{self, Event as CrosstermEvent, KeyEvent, MouseEvent};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
@@ -32,7 +32,7 @@ impl EventHandler {
         // Spawn la tâche de poll des événements
         tokio::spawn(async move {
             let mut tick_interval = tokio::time::interval(tick_rate);
-            
+
             loop {
                 let event = tokio::select! {
                     _ = tick_interval.tick() => {

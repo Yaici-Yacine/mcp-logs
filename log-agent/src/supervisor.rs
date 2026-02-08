@@ -1,10 +1,10 @@
 use crate::config::Config;
 use crate::types::{LogMessage, LogSource};
 use std::process::ExitStatus;
+use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
-use std::process::Stdio;
 
 /// Superviseur de processus pour la TUI
 pub struct Supervisor {
@@ -51,7 +51,7 @@ impl Supervisor {
                 .process_group(0) // Crée un nouveau groupe de processus
                 .spawn()?
         };
-        
+
         #[cfg(not(unix))]
         let mut child = Command::new(program)
             .args(args)
@@ -109,17 +109,15 @@ impl Supervisor {
             {
                 use nix::sys::signal::{self, Signal};
                 use nix::unistd::Pid;
-                
+
                 if let Some(pid) = child.id() {
                     // Envoyer SIGTERM au groupe de processus entier
                     let _ = signal::killpg(Pid::from_raw(pid as i32), Signal::SIGTERM);
-                    
+
                     // Attendre un peu pour un arrêt propre
-                    let wait_result = tokio::time::timeout(
-                        std::time::Duration::from_secs(2),
-                        child.wait()
-                    ).await;
-                    
+                    let wait_result =
+                        tokio::time::timeout(std::time::Duration::from_secs(2), child.wait()).await;
+
                     // Si le processus ne s'est pas arrêté, forcer avec SIGKILL
                     if wait_result.is_err() {
                         let _ = signal::killpg(Pid::from_raw(pid as i32), Signal::SIGKILL);
@@ -127,7 +125,7 @@ impl Supervisor {
                     }
                 }
             }
-            
+
             // Sur Windows, utiliser kill() directement
             #[cfg(not(unix))]
             {
@@ -135,22 +133,16 @@ impl Supervisor {
                 let _ = child.wait().await;
             }
         }
-        
+
         // Attendre que les tâches de capture se terminent AVEC TIMEOUT
         // Ne pas bloquer plus de 500ms pour la sortie du TUI
         if let Some(task) = self.stdout_task.take() {
-            let _ = tokio::time::timeout(
-                std::time::Duration::from_millis(500),
-                task
-            ).await;
+            let _ = tokio::time::timeout(std::time::Duration::from_millis(500), task).await;
         }
         if let Some(task) = self.stderr_task.take() {
-            let _ = tokio::time::timeout(
-                std::time::Duration::from_millis(500),
-                task
-            ).await;
+            let _ = tokio::time::timeout(std::time::Duration::from_millis(500), task).await;
         }
-        
+
         self.child = None;
     }
 
@@ -172,11 +164,11 @@ impl Supervisor {
                 Ok(Some(status)) => {
                     // Processus terminé, nettoyer l'état
                     self.child = None;
-                    
+
                     // Les tâches stdout/stderr vont se terminer naturellement à EOF
                     // On les garde pour finir de capturer les derniers logs
                     // Elles seront nettoyées au prochain restart() ou stop()
-                    
+
                     Some(status)
                 }
                 _ => None,

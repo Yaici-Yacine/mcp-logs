@@ -1,11 +1,11 @@
 use super::widgets::{ShortcutList, StatusInfoList};
 use crate::tui::app::{App, AppState, InputMode};
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
-    Frame,
 };
 
 /// Dessine la barre de statut avec infos et input selon le mode

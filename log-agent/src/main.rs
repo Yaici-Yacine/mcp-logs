@@ -19,7 +19,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { project, verbose, watch, cmd, command } => {
+        Commands::Run {
+            project,
+            verbose,
+            watch,
+            cmd,
+            command,
+        } => {
             run_command(project, verbose, watch, cmd, command).await?;
         }
         Commands::Test { message } => {
@@ -34,19 +40,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn run_command(
-    project_override: Option<String>, 
-    verbose_override: bool, 
-    watch: bool, 
+    project_override: Option<String>,
+    verbose_override: bool,
+    watch: bool,
     cmd_name: Option<String>,
-    command_args: Vec<String>
+    command_args: Vec<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Charger la configuration
     let mut config = config::load_config().unwrap_or_else(|e| {
-        eprintln!("{}", format!("Warning: Failed to load config: {}", e).yellow());
+        eprintln!(
+            "{}",
+            format!("Warning: Failed to load config: {}", e).yellow()
+        );
         eprintln!("  Using default configuration");
         Config::default()
     });
-    
+
     // Déterminer la commande à exécuter et le mode watch
     // Priorité: CLI args > --cmd > default_command
     let (command, cmd_watch_override) = if !command_args.is_empty() {
@@ -58,12 +67,16 @@ async fn run_command(
             // Extraire la commande et le watch override depuis CommandConfig
             match cmd_config {
                 config::CommandConfig::Simple(cmd) => (cmd.clone(), None),
-                config::CommandConfig::Detailed { command: cmd, watch: cmd_watch } => {
-                    (cmd.clone(), Some(*cmd_watch))
-                }
+                config::CommandConfig::Detailed {
+                    command: cmd,
+                    watch: cmd_watch,
+                } => (cmd.clone(), Some(*cmd_watch)),
             }
         } else {
-            eprintln!("{}", format!("Error: Predefined command '{}' not found in config", name).red());
+            eprintln!(
+                "{}",
+                format!("Error: Predefined command '{}' not found in config", name).red()
+            );
             eprintln!();
             eprintln!("Available commands in config:");
             if config.agent.commands.is_empty() {
@@ -81,8 +94,16 @@ async fn run_command(
                         config::CommandConfig::Simple(cmd) => {
                             eprintln!("  {} = {:?}", name.bright_cyan(), cmd);
                         }
-                        config::CommandConfig::Detailed { command: cmd, watch: cmd_watch } => {
-                            eprintln!("  {} = {:?} (watch: {})", name.bright_cyan(), cmd, cmd_watch);
+                        config::CommandConfig::Detailed {
+                            command: cmd,
+                            watch: cmd_watch,
+                        } => {
+                            eprintln!(
+                                "  {} = {:?} (watch: {})",
+                                name.bright_cyan(),
+                                cmd,
+                                cmd_watch
+                            );
                         }
                     }
                 }
@@ -112,7 +133,7 @@ async fn run_command(
         eprintln!("     mcp-log-agent run");
         return Err("No command specified".into());
     };
-    
+
     // Appliquer les overrides CLI
     if let Some(proj) = project_override {
         config.agent.default_project = proj;
@@ -120,19 +141,19 @@ async fn run_command(
     if verbose_override {
         config.agent.verbose = true;
     }
-    
+
     // Déterminer le mode watch (priorité: CLI flag > commande spécifique > config globale)
     let use_watch = watch || cmd_watch_override.unwrap_or(config.agent.watch);
-    
+
     let project = config.agent.default_project.clone();
-    
+
     // Mode TUI avec supervision (--watch ou config.agent.watch = true)
     if use_watch {
-        return tui::run_tui(project, command, config)
-            .await
-            .map_err(|e| -> Box<dyn std::error::Error> { Box::new(std::io::Error::other(e.to_string())) });
+        return tui::run_tui(project, command, config).await.map_err(
+            |e| -> Box<dyn std::error::Error> { Box::new(std::io::Error::other(e.to_string())) },
+        );
     }
-    
+
     // Mode classique (one-shot)
     // Afficher les informations
     if config::has_local_config() {
@@ -144,7 +165,7 @@ async fn run_command(
             eprintln!("  Location: {}", path.display());
         }
     }
-    
+
     eprintln!("{}", format!("Project: {}", project).bright_cyan());
     eprintln!();
 
@@ -180,34 +201,37 @@ async fn test_connection(message: Option<String>) -> Result<(), Box<dyn std::err
 }
 
 /// Gère l'ajout du fichier de config local au .gitignore
-fn handle_gitignore_for_local_config(no_gitignore: bool, auto_yes: bool) -> Result<(), Box<dyn std::error::Error>> {
+fn handle_gitignore_for_local_config(
+    no_gitignore: bool,
+    auto_yes: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     use owo_colors::OwoColorize;
-    
+
     let config_filename = ".mcp-log-agent.toml";
-    
+
     // Si --no-gitignore est spécifié, skip
     if no_gitignore {
         return Ok(());
     }
-    
+
     // Vérifier si on est dans un repo Git
     if !config::is_git_repository() {
         return Ok(());
     }
-    
+
     // Vérifier si le fichier est déjà dans .gitignore
     if config::is_config_in_gitignore(config_filename)? {
         println!("{}", "  ℹ Already in .gitignore".bright_black());
         return Ok(());
     }
-    
+
     // Si --yes est spécifié, ajouter automatiquement
     if auto_yes {
         config::add_to_gitignore(config_filename)?;
         println!("{}", "✓ Added to .gitignore".green());
         return Ok(());
     }
-    
+
     // Sinon, demander à l'utilisateur
     if config::prompt_add_to_gitignore(config_filename) {
         config::add_to_gitignore(config_filename)?;
@@ -215,13 +239,18 @@ fn handle_gitignore_for_local_config(no_gitignore: bool, auto_yes: bool) -> Resu
     } else {
         println!("{}", "  Skipped adding to .gitignore".bright_black());
     }
-    
+
     Ok(())
 }
 
 fn handle_config_command(action: ConfigAction) -> Result<(), Box<dyn std::error::Error>> {
     match action {
-        ConfigAction::Init { global, local, no_gitignore, yes } => {
+        ConfigAction::Init {
+            global,
+            local,
+            no_gitignore,
+            yes,
+        } => {
             if global {
                 if let Some(path) = config::get_global_config_path() {
                     config::create_default_config(&path)?;
@@ -235,7 +264,7 @@ fn handle_config_command(action: ConfigAction) -> Result<(), Box<dyn std::error:
                 config::create_default_config(&path)?;
                 println!("{}", "✓ Created local configuration file".green());
                 println!("  Location: {}", path.display());
-                
+
                 // Vérifier si c'est un repo Git et proposer d'ajouter au .gitignore
                 handle_gitignore_for_local_config(no_gitignore, yes)?;
             } else {
@@ -244,7 +273,7 @@ fn handle_config_command(action: ConfigAction) -> Result<(), Box<dyn std::error:
                 config::create_default_config(&path)?;
                 println!("{}", "✓ Created local configuration file".green());
                 println!("  Location: {}", path.display());
-                
+
                 // Vérifier si c'est un repo Git et proposer d'ajouter au .gitignore
                 handle_gitignore_for_local_config(no_gitignore, yes)?;
             }
@@ -261,10 +290,10 @@ fn handle_config_command(action: ConfigAction) -> Result<(), Box<dyn std::error:
             let config = config::load_config()?;
             let toml_str = toml::to_string(&config)?;
             let value: toml::Value = toml::from_str(&toml_str)?;
-            
+
             let parts: Vec<&str> = key.split('.').collect();
             let mut current = &value;
-            
+
             for part in parts {
                 if let Some(table) = current.as_table() {
                     if let Some(val) = table.get(part) {
@@ -278,7 +307,7 @@ fn handle_config_command(action: ConfigAction) -> Result<(), Box<dyn std::error:
                     return Ok(());
                 }
             }
-            
+
             println!("{}", current);
         }
         ConfigAction::Set { global, key, value } => {
@@ -287,11 +316,14 @@ fn handle_config_command(action: ConfigAction) -> Result<(), Box<dyn std::error:
             } else {
                 config::get_local_config_path()
             };
-            
+
             // Utiliser la nouvelle fonction set_config_value
             match config::set_config_value(&path, &key, &value) {
                 Ok(_) => {
-                    println!("{}", format!("✓ Configuration updated: {} = {}", key, value).green());
+                    println!(
+                        "{}",
+                        format!("✓ Configuration updated: {} = {}", key, value).green()
+                    );
                     println!("  File: {}", path.display());
                 }
                 Err(e) => {
@@ -321,20 +353,21 @@ fn handle_config_command(action: ConfigAction) -> Result<(), Box<dyn std::error:
         }
         ConfigAction::Validate => {
             println!("Validating configuration...");
-            
+
             let mut has_errors = false;
-            
+
             if let Some(global_path) = config::get_global_config_path()
-                && global_path.exists() {
-                    match config::load_config() {
-                        Ok(_) => println!("{}", "  Global config: ✓ Valid".green()),
-                        Err(e) => {
-                            println!("{}", format!("  Global config: ✗ Error: {}", e).red());
-                            has_errors = true;
-                        }
+                && global_path.exists()
+            {
+                match config::load_config() {
+                    Ok(_) => println!("{}", "  Global config: ✓ Valid".green()),
+                    Err(e) => {
+                        println!("{}", format!("  Global config: ✗ Error: {}", e).red());
+                        has_errors = true;
                     }
                 }
-            
+            }
+
             let local_path = config::get_local_config_path();
             if local_path.exists() {
                 match config::load_config() {
@@ -345,7 +378,7 @@ fn handle_config_command(action: ConfigAction) -> Result<(), Box<dyn std::error:
                     }
                 }
             }
-            
+
             if !has_errors {
                 println!();
                 println!("{}", "✓ Configuration is valid".green());
@@ -354,7 +387,7 @@ fn handle_config_command(action: ConfigAction) -> Result<(), Box<dyn std::error:
         ConfigAction::Detect => {
             println!("Configuration Detection");
             println!();
-            
+
             if let Some(global_path) = config::get_global_config_path() {
                 if global_path.exists() {
                     println!("{}", "  ✓ Global config".green());
@@ -363,7 +396,7 @@ fn handle_config_command(action: ConfigAction) -> Result<(), Box<dyn std::error:
                     println!("{}", "  ✗ Global config not found".yellow());
                 }
             }
-            
+
             let local_path = config::get_local_config_path();
             if local_path.exists() {
                 println!("{}", "  ✓ Local config".green());
@@ -371,7 +404,7 @@ fn handle_config_command(action: ConfigAction) -> Result<(), Box<dyn std::error:
             } else {
                 println!("{}", "  ✗ Local config not found".yellow());
             }
-            
+
             println!();
             let config = config::load_config().unwrap_or_default();
             println!("Default project when running from this directory:");
@@ -395,27 +428,27 @@ fn handle_config_command(action: ConfigAction) -> Result<(), Box<dyn std::error:
             handle_theme_action(action)?;
         }
     }
-    
+
     Ok(())
 }
 
 fn handle_theme_action(action: cli::ThemeAction) -> Result<(), Box<dyn std::error::Error>> {
     use cli::ThemeAction;
     use config::themes::ThemeManager;
-    
+
     // Créer le gestionnaire de thèmes
-    let config_dir = config::get_global_config_dir()
-        .ok_or("Could not determine global config directory")?;
+    let config_dir =
+        config::get_global_config_dir().ok_or("Could not determine global config directory")?;
     let theme_manager = ThemeManager::new(config_dir);
-    
+
     // Initialiser les thèmes par défaut si nécessaire
     theme_manager.initialize_default_themes()?;
-    
+
     match action {
         ThemeAction::List => {
             println!("{}", "Available themes:".bright_cyan().bold());
             println!();
-            
+
             match theme_manager.list_themes_with_info() {
                 Ok(themes) => {
                     if themes.is_empty() {
@@ -438,12 +471,15 @@ fn handle_theme_action(action: cli::ThemeAction) -> Result<(), Box<dyn std::erro
                     eprintln!("{}", format!("✗ Failed to list themes: {}", e).red());
                 }
             }
-            
+
             println!();
             println!("To apply a theme:");
-            println!("  {}", "mcp-log-agent config theme set <name>".bright_black());
+            println!(
+                "  {}",
+                "mcp-log-agent config theme set <name>".bright_black()
+            );
         }
-        
+
         ThemeAction::Show { name } => {
             match theme_manager.load_theme(&name) {
                 Ok(theme) => {
@@ -455,11 +491,13 @@ fn handle_theme_action(action: cli::ThemeAction) -> Result<(), Box<dyn std::erro
                         println!("Author: {}", author);
                     }
                     println!();
-                    
+
                     // Afficher le contenu du thème en TOML
                     match toml::to_string_pretty(&theme) {
                         Ok(content) => println!("{}", content),
-                        Err(e) => eprintln!("{}", format!("✗ Failed to serialize theme: {}", e).red()),
+                        Err(e) => {
+                            eprintln!("{}", format!("✗ Failed to serialize theme: {}", e).red())
+                        }
                     }
                 }
                 Err(e) => {
@@ -468,21 +506,28 @@ fn handle_theme_action(action: cli::ThemeAction) -> Result<(), Box<dyn std::erro
                 }
             }
         }
-        
-        ThemeAction::Create { name, from, interactive } => {
+
+        ThemeAction::Create {
+            name,
+            from,
+            interactive,
+        } => {
             // Vérifier si le thème existe déjà
             if theme_manager.theme_exists(&name) {
                 eprintln!("{}", format!("✗ Theme '{}' already exists", name).red());
                 eprintln!("  Choose a different name or delete the existing theme first");
                 return Ok(());
             }
-            
+
             let theme = if let Some(template) = from {
                 // Créer depuis un template
                 match theme_manager.create_from_template(&name, &template) {
                     Ok(theme) => theme,
                     Err(e) => {
-                        eprintln!("{}", format!("✗ Failed to create from template: {}", e).red());
+                        eprintln!(
+                            "{}",
+                            format!("✗ Failed to create from template: {}", e).red()
+                        );
                         return Ok(());
                     }
                 }
@@ -503,27 +548,37 @@ fn handle_theme_action(action: cli::ThemeAction) -> Result<(), Box<dyn std::erro
                     }
                 }
             };
-            
+
             // Sauvegarder le thème
             match theme_manager.save_theme(&theme) {
                 Ok(_) => {
                     println!("{}", format!("✓ Created theme '{}'", name).green());
-                    println!("  Location: {}/.config/mcp-log-agent/themes/{}.toml", 
-                        std::env::var("HOME").unwrap_or_default(), name);
+                    println!(
+                        "  Location: {}/.config/mcp-log-agent/themes/{}.toml",
+                        std::env::var("HOME").unwrap_or_default(),
+                        name
+                    );
                     println!();
                     println!("  Edit the theme file to customize colors");
-                    println!("  Apply with: {}", format!("mcp-log-agent config theme set {}", name).bright_black());
+                    println!(
+                        "  Apply with: {}",
+                        format!("mcp-log-agent config theme set {}", name).bright_black()
+                    );
                 }
                 Err(e) => {
                     eprintln!("{}", format!("✗ Failed to save theme: {}", e).red());
                 }
             }
         }
-        
-        ThemeAction::Export { name, description, author } => {
+
+        ThemeAction::Export {
+            name,
+            description,
+            author,
+        } => {
             // Charger la config actuelle
             let config = config::load_config()?;
-            
+
             // Créer le thème depuis la config
             let theme = theme_manager.export_from_config(
                 &name,
@@ -532,20 +587,26 @@ fn handle_theme_action(action: cli::ThemeAction) -> Result<(), Box<dyn std::erro
                 description,
                 author,
             );
-            
+
             // Sauvegarder
             match theme_manager.save_theme(&theme) {
                 Ok(_) => {
-                    println!("{}", format!("✓ Exported current colors as theme '{}'", name).green());
-                    println!("  Location: {}/.config/mcp-log-agent/themes/{}.toml", 
-                        std::env::var("HOME").unwrap_or_default(), name);
+                    println!(
+                        "{}",
+                        format!("✓ Exported current colors as theme '{}'", name).green()
+                    );
+                    println!(
+                        "  Location: {}/.config/mcp-log-agent/themes/{}.toml",
+                        std::env::var("HOME").unwrap_or_default(),
+                        name
+                    );
                 }
                 Err(e) => {
                     eprintln!("{}", format!("✗ Failed to export theme: {}", e).red());
                 }
             }
         }
-        
+
         ThemeAction::Set { name, global } => {
             // Vérifier que le thème existe
             if !theme_manager.theme_exists(&name) {
@@ -553,7 +614,7 @@ fn handle_theme_action(action: cli::ThemeAction) -> Result<(), Box<dyn std::erro
                 eprintln!("  Use 'mcp-log-agent config theme list' to see available themes");
                 return Ok(());
             }
-            
+
             // Déterminer quel fichier de config modifier
             let config_path = if global {
                 config::get_global_config_path().ok_or("Could not determine global config path")?
@@ -562,17 +623,17 @@ fn handle_theme_action(action: cli::ThemeAction) -> Result<(), Box<dyn std::erro
             } else {
                 config::get_global_config_path().ok_or("Could not determine config path")?
             };
-            
+
             // Charger la config existante
             let mut config = if config_path.exists() {
                 config::load_config_from_file(&config_path).unwrap_or_default()
             } else {
                 config::Config::default()
             };
-            
+
             // Mettre à jour le champ theme
             config.theme = name.clone();
-            
+
             // Sauvegarder
             match config::save_config(&config, &config_path) {
                 Ok(_) => {
@@ -584,34 +645,37 @@ fn handle_theme_action(action: cli::ThemeAction) -> Result<(), Box<dyn std::erro
                 }
             }
         }
-        
-        ThemeAction::Preview { name } => {
-            match theme_manager.load_theme(&name) {
-                Ok(theme) => {
-                    println!("{}", format!("Theme Preview: {}", theme.name).bright_cyan().bold());
-                    if let Some(desc) = &theme.description {
-                        println!("{}", desc.bright_black());
-                    }
-                    println!();
-                    
-                    println!("{}", "Log Levels:".bold());
-                    println!("  {} This is an error message", "ERROR".red().bold());
-                    println!("  {} This is a warning message", "WARN ".yellow());
-                    println!("  {} This is an info message", "INFO ".cyan());
-                    println!("  {} This is a debug message", "DEBUG".blue());
-                    println!();
-                    println!("{}", "System Messages:".bold());
-                    println!("  {} Success: Operation completed", "✓".green().bold());
-                    println!("  {} Error: Operation failed", "✗".red().bold());
-                    println!("  {} Info: Additional information", "ℹ".cyan());
-                    println!("    {}", "Dimmed text for secondary info".bright_black());
+
+        ThemeAction::Preview { name } => match theme_manager.load_theme(&name) {
+            Ok(theme) => {
+                println!(
+                    "{}",
+                    format!("Theme Preview: {}", theme.name)
+                        .bright_cyan()
+                        .bold()
+                );
+                if let Some(desc) = &theme.description {
+                    println!("{}", desc.bright_black());
                 }
-                Err(e) => {
-                    eprintln!("{}", format!("✗ Theme '{}' not found: {}", name, e).red());
-                }
+                println!();
+
+                println!("{}", "Log Levels:".bold());
+                println!("  {} This is an error message", "ERROR".red().bold());
+                println!("  {} This is a warning message", "WARN ".yellow());
+                println!("  {} This is an info message", "INFO ".cyan());
+                println!("  {} This is a debug message", "DEBUG".blue());
+                println!();
+                println!("{}", "System Messages:".bold());
+                println!("  {} Success: Operation completed", "✓".green().bold());
+                println!("  {} Error: Operation failed", "✗".red().bold());
+                println!("  {} Info: Additional information", "ℹ".cyan());
+                println!("    {}", "Dimmed text for secondary info".bright_black());
             }
-        }
+            Err(e) => {
+                eprintln!("{}", format!("✗ Theme '{}' not found: {}", name, e).red());
+            }
+        },
     }
-    
+
     Ok(())
 }

@@ -2,11 +2,11 @@ use crate::tui::app::{App, LogLine};
 use crate::types::LogLevel;
 use ansi_to_tui::IntoText;
 use ratatui::{
+    Frame,
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Scrollbar, ScrollbarOrientation, ScrollbarState},
-    Frame,
 };
 
 /// Dessine la zone des logs avec scrollbar et filtrage
