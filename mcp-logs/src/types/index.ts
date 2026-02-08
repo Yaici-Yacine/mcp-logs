@@ -62,3 +62,40 @@ export interface Analytics {
     percentage: number;
   };
 }
+
+// Command protocol types for bidirectional communication
+export interface CommandMessage {
+  version: string;
+  type: "command";
+  data: CommandData;
+}
+
+export interface CommandData {
+  command: string; // "restart"
+  project: string;
+  requestId: string;
+}
+
+export interface CommandResponse {
+  version: string;
+  type: "command_response";
+  data: CommandResponseData;
+}
+
+export interface CommandResponseData {
+  requestId: string;
+  success: boolean;
+  message: string;
+  pid?: number;
+  project: string;
+}
+
+// Agent hello message to identify connection type
+export interface AgentHelloMessage {
+  version: string;
+  type: "agent_hello";
+  data: {
+    project: string;
+    mode: "command_listener" | "log_sender";
+  };
+}

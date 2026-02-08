@@ -171,4 +171,20 @@ export const TOOLS: Tool[] = [
       properties: {},
     },
   },
+  {
+    name: "restart_process",
+    description:
+      "Restart a running process being monitored by an agent. Works in both TUI (watch) mode and one-shot mode. The agent will gracefully stop the current process and start a new one with the same command.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project: {
+          type: "string",
+          description:
+            "Project name to restart (required). Use 'list_projects' to see connected agents. Example: 'my-app'",
+        },
+      },
+      required: ["project"],
+    },
+  },
 ];

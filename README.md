@@ -7,7 +7,8 @@ Système complet de capture et analyse de logs en temps réel pour projets de d�
 - 🎨 **Logs colorisés** : Erreurs en rouge, warnings en jaune, debug en bleu
 - 🔕 **Mode silencieux** : Logs verbeux désactivés par défaut
 - 🚀 **Multi-agents** : Lancez plusieurs agents simultanément pour monitorer plusieurs projets
-- 📊 **Outils MCP** : 8 outils pour interroger et analyser vos logs
+- 📊 **Outils MCP** : 9 outils pour interroger et analyser vos logs
+- 🔄 **Restart à distance** : Redémarrez vos processus via l'IA (nouveau !)
 - 📈 **Analytics avancées** : Distribution, timeline, messages fréquents, taux d'erreurs
 - ⏰ **Filtrage temporel** : Filtrez par plage de temps (ISO 8601, timestamps, temps relatifs)
 - 🔍 **Recherche regex** : Patterns avancés pour requêtes complexes
@@ -349,9 +350,30 @@ get_stats                                  # Statistiques globales
 | `search_logs` | Recherche textuelle ou regex | `query` (requis), `regex`, `project`, `limit` |
 | `get_errors` | Logs de niveau erreur uniquement | `project`, `limit` |
 | `get_stats` | Statistiques globales | - |
-| `get_analytics` | **NOUVEAU** - Analytics avancées | `timeRange`, `project`, `groupBy`, `startTime`, `endTime` |
+| `get_analytics` | Analytics avancées | `timeRange`, `project`, `groupBy`, `startTime`, `endTime` |
 | `list_projects` | Liste des agents connectés | - |
 | `clear_logs` | Vide la mémoire | - |
+| `restart_process` | **🔄 NOUVEAU** - Redémarre un processus surveillé | `project` (requis) |
+
+### 🔄 Nouveau : Restart à distance via IA
+
+L'IA peut maintenant redémarrer vos processus directement via MCP !
+
+**Cas d'usage :**
+- Détection automatique d'erreurs → restart
+- Application de changements de config
+- Gestion de fuites mémoire
+- Orchestration multi-projets
+
+**Exemple :**
+```
+User: J'ai modifié le fichier .env
+AI: Je vais redémarrer l'application pour appliquer les changements.
+    → Appelle restart_process { "project": "my-app" }
+    ✓ Process restarted successfully (PID: 12345)
+```
+
+**Documentation complète :** Voir [RESTART-FEATURE.md](./RESTART-FEATURE.md)
 
 ### Exemples de requêtes
 

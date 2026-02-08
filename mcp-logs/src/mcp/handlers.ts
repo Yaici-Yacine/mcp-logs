@@ -15,7 +15,7 @@ export class ToolHandlers {
 
   async handleTool(name: string, args?: ToolArguments): Promise<CallToolResult> {
     try {
-      const matchName: Record<string, () => CallToolResult> = {
+      const matchName: Record<string, () => CallToolResult | Promise<CallToolResult>> = {
         get_recent_logs: () => this.getRecentLogs(args),
         get_logs: () => this.getLogs(args),
         get_stats: () => this.getStats(),
@@ -24,6 +24,7 @@ export class ToolHandlers {
         get_errors: () => this.getErrors(args),
         clear_logs: () => this.clearLogs(),
         list_projects: () => this.listProjects(),
+        restart_process: () => this.restartProcess(args),
       };
 
       const handler = matchName[name];
@@ -31,7 +32,7 @@ export class ToolHandlers {
         throw new Error(`Unknown tool: ${name}`);
       }
 
-      return handler();
+      return await handler();
     } catch (error) {
       return {
         content: [
@@ -285,6 +286,51 @@ export class ToolHandlers {
               connectedAgents: connectedProjects,
               projectsWithLogs: stats.projects,
               totalLogs: stats.totalLogs,
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  }
+
+  private async restartProcess(args?: ToolArguments): Promise<CallToolResult> {
+    if (!this.socketServer) {
+      throw new Error("Socket server not available");
+    }
+
+    const project = typeof args?.project === "string" ? args.project : undefined;
+    
+    if (!project) {
+      throw new Error("Missing required parameter: project");
+    }
+
+    // Check if project is connected
+    const connectedProjects = this.socketServer.getConnectedProjects();
+    if (!connectedProjects.includes(project)) {
+      throw new Error(
+        `Project '${project}' is not connected. Available projects: ${connectedProjects.join(", ") || "none"}`
+      );
+    }
+
+    // Send restart command to agent
+    const success = await this.socketServer.sendCommand(project, "restart");
+    
+    if (!success) {
+      throw new Error(`Failed to send restart command to project '${project}'`);
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              success: true,
+              message: `Restart command sent to project '${project}'. The agent will stop the current process and start a new one.`,
+              project,
+              note: "Check the agent's logs for confirmation and the new process PID.",
             },
             null,
             2

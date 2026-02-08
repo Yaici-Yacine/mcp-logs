@@ -1,7 +1,7 @@
 {
   "name": "mcp-logs",
-  "version": "1.0.0",
-  "description": "Real-time log capture MCP server for development projects",
+  "version": "1.3.0",
+  "description": "Real-time log capture MCP server for development projects with remote process control",
   "type": "module",
   "bin": {
     "mcp-logs": "./dist/index.js"

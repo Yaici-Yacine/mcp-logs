@@ -1,11 +1,12 @@
 import { unlink } from "node:fs/promises";
-import type { LogMessage } from "../types/index.js";
+import type { LogMessage, CommandMessage, CommandResponse, AgentHelloMessage } from "../types/index.js";
 import { LogStore } from "../store/index.js";
 
 export const SOCKET_PATH = "/tmp/log-agent.sock";
 
 /**
  * Serveur Unix socket pour recevoir les logs de plusieurs CLI Rust
+ * et envoyer des commandes aux agents
  */
 export class SocketServer {
   private server: ReturnType<typeof Bun.listen> | null = null;
@@ -13,6 +14,8 @@ export class SocketServer {
   private socketPath: string;
   private verbose: boolean;
   private connectedProjects: Set<string> = new Set();
+  private clients: Map<string, any> = new Map(); // Map project name -> socket
+  private commandSockets: Map<string, any> = new Map(); // Map project name -> command listener socket
 
   constructor(store: LogStore, socketPath: string = SOCKET_PATH, verbose = false) {
     this.store = store;
@@ -35,12 +38,20 @@ export class SocketServer {
       unix: this.socketPath,
       socket: {
         data: (socket, data) => {
-          this.handleData(data);
+          this.handleData(socket, data);
         },
         open: (socket) => {
           if (this.verbose) console.log("✓ Client connected");
         },
         close: (socket) => {
+          // Remove socket from clients map when disconnected
+          for (const [project, s] of this.clients.entries()) {
+            if (s === socket) {
+              this.clients.delete(project);
+              this.connectedProjects.delete(project);
+              console.log(`✓ Agent disconnected: ${project}`);
+            }
+          }
           if (this.verbose) console.log("✓ Client disconnected");
         },
         error: (socket, error) => {
@@ -53,33 +64,95 @@ export class SocketServer {
   }
 
   /**
-   * Traite les données reçues
+   * Traite les données reçues (logs ou command responses)
    */
-  private handleData(data: Buffer): void {
+  private handleData(socket: any, data: Buffer): void {
     const text = data.toString("utf-8");
     const lines = text.split("\n").filter((line) => line.trim());
 
     for (const line of lines) {
       try {
-        const log: LogMessage = JSON.parse(line);
-        this.store.add(log);
+        const msg = JSON.parse(line);
+        
+        if (msg.type === "agent_hello") {
+          // Handle agent hello message to identify command listener
+          const hello: AgentHelloMessage = msg;
+          if (hello.data.mode === "command_listener") {
+            this.commandSockets.set(hello.data.project, socket);
+            this.connectedProjects.add(hello.data.project);
+            if (this.verbose) {
+              console.log(`✓ Command listener connected for: ${hello.data.project}`);
+            }
+          }
+        } else if (msg.type === "log_entry") {
+          // Handle log message
+          const log: LogMessage = msg;
+          this.store.add(log);
 
-        // Enregistrer le projet comme connecté
-        if (!this.connectedProjects.has(log.data.project)) {
-          this.connectedProjects.add(log.data.project);
-          console.log(`✓ Agent connected: ${log.data.project}`);
-        }
+          // Register socket for this project
+          if (!this.clients.has(log.data.project)) {
+            this.clients.set(log.data.project, socket);
+            this.connectedProjects.add(log.data.project);
+            console.log(`✓ Agent connected: ${log.data.project}`);
+          }
 
-        // Affiche le log dans la console du serveur seulement en mode verbose
-        if (this.verbose) {
-          const emoji = this.getLevelEmoji(log.data.level);
-          console.log(
-            `${emoji} [${log.data.project}] ${log.data.message.substring(0, 100)}`
-          );
+          // Affiche le log dans la console du serveur seulement en mode verbose
+          if (this.verbose) {
+            const emoji = this.getLevelEmoji(log.data.level);
+            console.log(
+              `${emoji} [${log.data.project}] ${log.data.message.substring(0, 100)}`
+            );
+          }
+        } else if (msg.type === "command_response") {
+          // Handle command response from agent
+          const response: CommandResponse = msg;
+          if (this.verbose) {
+            console.log(`📩 Command response from ${response.data.project}: ${response.data.message}`);
+          }
+          if (response.data.success) {
+            console.log(`✓ ${response.data.project}: ${response.data.message}${response.data.pid ? ` (PID: ${response.data.pid})` : ''}`);
+          } else {
+            console.error(`✗ ${response.data.project}: ${response.data.message}`);
+          }
         }
       } catch (error) {
-        console.error("Failed to parse log:", error, "Line:", line);
+        console.error("Failed to parse message:", error, "Line:", line);
       }
+    }
+  }
+
+  /**
+   * Envoie une commande à un agent spécifique
+   */
+  async sendCommand(project: string, command: string): Promise<boolean> {
+    // Use the command socket if available, otherwise fall back to log socket
+    const socket = this.commandSockets.get(project) || this.clients.get(project);
+    if (!socket) {
+      if (this.verbose) {
+        console.log(`✗ No socket found for project: ${project}`);
+      }
+      return false;
+    }
+
+    const message: CommandMessage = {
+      version: "1.0",
+      type: "command",
+      data: {
+        command,
+        project,
+        requestId: crypto.randomUUID(),
+      },
+    };
+
+    try {
+      socket.write(JSON.stringify(message) + "\n");
+      if (this.verbose) {
+        console.log(`📤 Sent command '${command}' to project '${project}'`);
+      }
+      return true;
+    } catch (error) {
+      console.error(`Failed to send command to ${project}:`, error);
+      return false;
     }
   }
 
